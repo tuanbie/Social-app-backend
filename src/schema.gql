@@ -1,0 +1,69 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Conversation {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateConversationInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreatePostInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateUserInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+type Mutation {
+  createConversation(createConversationInput: CreateConversationInput!): Conversation!
+  createPost(createPostInput: CreatePostInput!): Post!
+  createUser(createUserInput: CreateUserInput!): User!
+  removeConversation(id: Int!): Conversation!
+  removePost(id: Int!): Post!
+  removeUser(id: Int!): User!
+  updateConversation(updateConversationInput: UpdateConversationInput!): Conversation!
+  updatePost(updatePostInput: UpdatePostInput!): Post!
+  updateUser(updateUserInput: UpdateUserInput!): User!
+}
+
+type Post {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+type Query {
+  conversation(id: Int!): Conversation!
+  post(id: Int!): Post!
+  user(id: Int!): User!
+}
+
+input UpdateConversationInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+input UpdatePostInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+input UpdateUserInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+type User {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
