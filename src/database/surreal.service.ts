@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
+import { appSettings } from 'src/common/config/appSetting';
 import { Surreal } from 'surrealdb';
 
 @Injectable()
@@ -14,18 +15,16 @@ export class SurrealService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     try {
-      await this.client.connect('http://127.0.0.1:8000/rpc');
+      await this.client.connect(appSettings.db.url);
 
-      // Đăng nhập quyền root
       await this.client.signin({
-        username: 'root',
-        password: 'root',
+        username: appSettings.db.username,
+        password: appSettings.db.password,
       });
 
-      // Chọn Namespace và Database
       await this.client.use({
-        namespace: 'social_ns',
-        database: 'social_db',
+        namespace: appSettings.db.namespace,
+        database: appSettings.db.database,
       });
 
       this.logger.log('🚀 Connected to SurrealDB successfully');
