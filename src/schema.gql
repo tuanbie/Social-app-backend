@@ -24,8 +24,13 @@ input CreatePostInput {
 }
 
 input CreateUserInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  avatar: String
+  bio: String
+  email: String!
+  full_name: String!
+  password: String!
+  status: UserStatus = ACTIVE
+  username: String!
 }
 
 """
@@ -90,9 +95,14 @@ input UpdatePostInput {
 }
 
 input UpdateUserInput {
-  """Example field (placeholder)"""
-  exampleField: Int
+  avatar: String
+  bio: String
+  email: String
+  full_name: String
   id: Int!
+  password: String
+  status: UserStatus = ACTIVE
+  username: String
 }
 
 type User {
@@ -107,6 +117,6 @@ type User {
 }
 
 enum UserStatus {
-  active
-  blocked
+  ACTIVE
+  BLOCK
 }

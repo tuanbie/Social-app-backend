@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
 import { SurrealService } from 'src/database/surreal.service';
-import { User } from './entities/user.entity';
+import { User, UserStatus } from './entities/user.entity';
 import { Table } from 'surrealdb';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
@@ -29,8 +30,41 @@ export class UserService {
     } as User;
   }
 
-  create(createUserInput: CreateUserInput) {
-    return `This action returns all user`;
+  private async allUsers(): Promise<any[]> {
+    return (await this.surreal.client.select<any>(new Table('user')).json()) ?? [];
+  }
+
+  async create(createUserInput: CreateUserInput): Promise<User> {
+    const users = await this.allUsers();
+    const existingByEmail = users.find((u) => u?.email === createUserInput.email);
+    if (existingByEmail) {
+      throw new BadRequestException('Email already registered');
+    }
+
+    const existingByUsername = users.find((u) => u?.username === createUserInput.username);
+    if (existingByUsername) {
+      throw new BadRequestException('Username already exists');
+    }
+
+    const hashedPassword = await bcrypt.hash(createUserInput.password, 10);
+    const created = await this.surreal.client
+      .create<any>(new Table('user'))
+      .content({
+        username: createUserInput.username,
+        full_name: createUserInput.full_name,
+        email: createUserInput.email,
+        password: hashedPassword,
+        avatar: createUserInput.avatar ?? null,
+        bio: createUserInput.bio ?? null,
+        status: createUserInput.status ?? UserStatus.ACTIVE,
+      })
+      .json();
+
+    const user = this.unwrapOne<any>(created);
+    if (user && 'password' in user) {
+      delete user.password;
+    }
+    return this.normalize(user);
   }
 
   async findAll(): Promise<User[]> {

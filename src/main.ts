@@ -9,6 +9,17 @@ async function bootstrap() {
     .setTitle('Social App API')
     .setDescription('REST API documentation (Swagger)')
     .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'Authorization',
+        description: 'Nhập token dạng: Bearer <JWT>',
+        in: 'header',
+      },
+      'access-token',
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);

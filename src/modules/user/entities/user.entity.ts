@@ -1,8 +1,8 @@
 import { ObjectType, Field, ID, GraphQLISODateTime, registerEnumType } from '@nestjs/graphql';
 
 export enum UserStatus {
-  active = 'active',
-  blocked = 'blocked',
+  ACTIVE = 'ACTIVE',
+  BLOCK = 'BLOCK',
 }
 
 registerEnumType(UserStatus, {
