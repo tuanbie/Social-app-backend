@@ -8,6 +8,7 @@
   "scripts": {
     "build": "nest build",
     "db:migrate": "ts-node -r tsconfig-paths/register src/database/migrate.ts",
+    "db:pull-schema": "ts-node -r tsconfig-paths/register src/database/pull-schema.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
