@@ -13,21 +13,37 @@ input CreateConversationInput {
 }
 
 input CreatePostInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  """
+  SurrealDB record id của user, ví dụ "user:abc123"
+  """
+  authorId: ID!
+  content: String
+  files: [String!]
+  image: String
+  status: PostStatus = published
 }
 
 input CreateUserInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  avatar: String
+  bio: String
+  email: String!
+  full_name: String!
+  password: String!
+  status: UserStatus = ACTIVE
+  username: String!
 }
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
 
 type Mutation {
   createConversation(createConversationInput: CreateConversationInput!): Conversation!
   createPost(createPostInput: CreatePostInput!): Post!
   createUser(createUserInput: CreateUserInput!): User!
   removeConversation(id: Int!): Conversation!
-  removePost(id: Int!): Post!
+  removePost(id: ID!): Post!
   removeUser(id: Int!): User!
   updateConversation(updateConversationInput: UpdateConversationInput!): Conversation!
   updatePost(updatePostInput: UpdatePostInput!): Post!
@@ -35,13 +51,24 @@ type Mutation {
 }
 
 type Post {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  author: ID!
+  content: String
+  created_at: DateTime!
+  files: [String!]!
+  id: ID!
+  image: String
+  status: PostStatus!
+}
+
+enum PostStatus {
+  pending
+  published
 }
 
 type Query {
   conversation(id: Int!): Conversation!
-  post(id: Int!): Post!
+  post(id: ID!): Post!
+  posts: [Post!]!
   user(id: Int!): User!
 }
 
@@ -52,18 +79,44 @@ input UpdateConversationInput {
 }
 
 input UpdatePostInput {
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: Int!
+  """
+  SurrealDB record id của user, ví dụ "user:abc123"
+  """
+  authorId: ID
+  content: String
+  files: [String!]
+
+  """
+  SurrealDB record id, ví dụ "post:abc123"
+  """
+  id: ID!
+  image: String
+  status: PostStatus = published
 }
 
 input UpdateUserInput {
-  """Example field (placeholder)"""
-  exampleField: Int
+  avatar: String
+  bio: String
+  email: String
+  full_name: String
   id: Int!
+  password: String
+  status: UserStatus = ACTIVE
+  username: String
 }
 
 type User {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  avatar: String
+  bio: String
+  created_at: DateTime!
+  email: String
+  full_name: String
+  id: ID!
+  status: UserStatus!
+  username: String
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCK
 }
