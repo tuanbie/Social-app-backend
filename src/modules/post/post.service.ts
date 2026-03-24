@@ -27,6 +27,11 @@ type SeenRecord = {
 export class PostService {
   constructor(private readonly surreal: SurrealService) {}
 
+  private toRecordId(table: 'user' | 'post' | 'seen', value: string): StringRecordId {
+    const normalized = value.startsWith(`${table}:`) ? value : `${table}:${value}`;
+    return new StringRecordId(normalized);
+  }
+
   private unwrapOne<T>(result: any): T {
     if (Array.isArray(result)) return result[0];
     return result as T;
@@ -83,13 +88,13 @@ export class PostService {
       content: createPostInput.content ?? null,
       image: createPostInput.image ?? null,
       files: createPostInput.files ?? [],
-      author: createPostInput.authorId,
+      author: this.toRecordId('user', createPostInput.authorId),
       status: createPostInput.status ?? PostStatus.published,
       // created_at để DB default time::now()
     };
 
     const created = await this.surreal.client
-      .create<Post>(new Table('post'))
+      .create<any>(new Table('post'))
       .content(payload)
       .json();
     return this.normalize(this.unwrapOne<Post>(created));
@@ -196,23 +201,23 @@ export class PostService {
         const mergedIds = Array.from(
           new Set([...(primarySeen.seen_post_ids ?? []), ...resultPostIds]),
         );
-        const mergedRecordIds = mergedIds.map((id) => new StringRecordId(id));
+        const mergedRecordIds = mergedIds.map((id) => this.toRecordId('post', id));
         await this.surreal.client
           .update(new StringRecordId(primarySeen.id))
           .merge({
-            user_id: new StringRecordId(userId),
+            user_id: this.toRecordId('user', userId),
             seen_post_ids: mergedRecordIds,
           })
           .json();
       } else {
         await this.surreal.client
           .relate(
-            new StringRecordId(`user:${userId}`),
+            this.toRecordId('user', userId),
             new Table('seen'),
-            new StringRecordId(`post:${resultPostIds[0]}`),
+            this.toRecordId('post', resultPostIds[0]),
             {
-              user_id: new StringRecordId(`user:${userId}`),
-              seen_post_ids: resultPostIds.map((id) => new StringRecordId(`post:${id}`)),
+              user_id: this.toRecordId('user', userId),
+              seen_post_ids: resultPostIds.map((id) => this.toRecordId('post', id)),
             },
           )
           .json();
