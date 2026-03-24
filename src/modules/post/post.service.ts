@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { SurrealService } from '../../database/surreal.service';
 import { CreatePostInput } from './dto/create-post.input';
 import { UpdatePostInput } from './dto/update-post.input';
@@ -207,12 +207,12 @@ export class PostService {
       } else {
         await this.surreal.client
           .relate(
-            new StringRecordId(userId),
+            new StringRecordId(`user:${userId}`),
             new Table('seen'),
-            new StringRecordId(resultPostIds[0]),
+            new StringRecordId(`post:${resultPostIds[0]}`),
             {
-              user_id: new StringRecordId(userId),
-              seen_post_ids: resultPostIds.map((id) => new StringRecordId(id)),
+              user_id: new StringRecordId(`user:${userId}`),
+              seen_post_ids: resultPostIds.map((id) => new StringRecordId(`post:${id}`)),
             },
           )
           .json();
@@ -231,12 +231,22 @@ export class PostService {
     return this.normalize(post);
   }
 
-  async update(id: string, updatePostInput: UpdatePostInput): Promise<Post> {
+  private async assertPostOwner(postId: string, userId: string): Promise<Post> {
+    const post = await this.findOne(postId);
+    if (post.author !== userId) {
+      throw new ForbiddenException('Only post owner can modify this post');
+    }
+    return post;
+  }
+
+  async update(id: string, updatePostInput: UpdatePostInput, currentUserId?: string): Promise<Post> {
+    if (currentUserId) {
+      await this.assertPostOwner(id, currentUserId);
+    }
     const patch: Record<string, unknown> = {};
     if (updatePostInput.content !== undefined) patch.content = updatePostInput.content;
     if (updatePostInput.image !== undefined) patch.image = updatePostInput.image;
     if (updatePostInput.files !== undefined) patch.files = updatePostInput.files;
-    if (updatePostInput.authorId !== undefined) patch.author = updatePostInput.authorId;
     if (updatePostInput.status !== undefined) patch.status = updatePostInput.status;
 
     const merged = await this.surreal.client
@@ -248,7 +258,10 @@ export class PostService {
     return this.normalize(post);
   }
 
-  async remove(id: string): Promise<Post> {
+  async remove(id: string, currentUserId?: string): Promise<Post> {
+    if (currentUserId) {
+      await this.assertPostOwner(id, currentUserId);
+    }
     const deleted = await this.surreal.client
       .delete<Post>(new StringRecordId(id))
       .json();
