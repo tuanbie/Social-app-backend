@@ -4,6 +4,7 @@ import { CreatePostInput } from './dto/create-post.input';
 import { UpdatePostInput } from './dto/update-post.input';
 import { Post, PostStatus } from './entities/post.entity';
 import { StringRecordId, Table } from 'surrealdb';
+import { PostQueryDto } from './dto/post-query.dto';
 
 @Injectable()
 export class PostService {
@@ -45,11 +46,32 @@ export class PostService {
     return this.normalize(this.unwrapOne<Post>(created));
   }
 
-  async findAll(): Promise<Post[]> {
+  async findAll(query: PostQueryDto = {}): Promise<Post[]> {
     const rows = await this.surreal.client
       .select<Post>(new Table('post'))
       .json();
-    return (rows ?? []).map((p) => this.normalize(p));
+    const normalized = (rows ?? []).map((p) => this.normalize(p));
+
+    const page = Math.max(1, Number(query.page ?? 1));
+    const limit = Math.max(1, Number(query.limit ?? 10));
+    const authorId = query.authorId?.trim();
+    const keyword = query.keyword?.trim().toLowerCase();
+
+    const filtered = normalized.filter((p) => {
+      if (authorId && p.author !== authorId) return false;
+      if (query.status && p.status !== query.status) return false;
+      if (keyword) {
+        const content = (p.content ?? '').toLowerCase();
+        if (!content.includes(keyword)) return false;
+      }
+      return true;
+    });
+
+    // newest first
+    filtered.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+
+    const start = (page - 1) * limit;
+    return filtered.slice(start, start + limit);
   }
 
   async findOne(id: string): Promise<Post> {

@@ -60,6 +60,14 @@ type Post {
   status: PostStatus!
 }
 
+input PostQueryInput {
+  authorId: ID
+  keyword: String
+  limit: Int = 10
+  page: Int = 1
+  status: PostStatus
+}
+
 enum PostStatus {
   pending
   published
@@ -68,7 +76,7 @@ enum PostStatus {
 type Query {
   conversation(id: Int!): Conversation!
   post(id: ID!): Post!
-  posts: [Post!]!
+  posts(query: PostQueryInput): [Post!]!
   user(id: Int!): User!
 }
 

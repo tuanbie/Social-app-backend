@@ -3,6 +3,7 @@ import { PostService } from './post.service';
 import { Post } from './entities/post.entity';
 import { CreatePostInput } from './dto/create-post.input';
 import { UpdatePostInput } from './dto/update-post.input';
+import { PostQueryInput } from './dto/post-query.input';
 
 @Resolver(() => Post)
 export class PostResolver {
@@ -14,8 +15,10 @@ export class PostResolver {
   }
 
   @Query(() => [Post], { name: 'posts' })
-  findAll(): Promise<Post[]> {
-    return this.postService.findAll();
+  findAll(
+    @Args('query', { type: () => PostQueryInput, nullable: true }) query?: PostQueryInput,
+  ): Promise<Post[]> {
+    return this.postService.findAll(query);
   }
 
   @Query(() => Post, { name: 'post' })

@@ -1,11 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post as HttpPost } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post as HttpPost, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PostService } from './post.service';
 import { CreatePostInput } from './dto/create-post.input';
 import { UpdatePostInput } from './dto/update-post.input';
 import { Post } from './entities/post.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
+import { PostQueryDto } from './dto/post-query.dto';
 
 @ApiTags('posts')
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('posts')
 export class PostController {
   constructor(private readonly postService: PostService) {}
@@ -13,8 +19,8 @@ export class PostController {
   @Get()
   @ApiOperation({ summary: 'List posts' })
   @ApiResponse({ status: 200, type: [Post] })
-  findAll(): Promise<Post[]> {
-    return this.postService.findAll();
+  findAll(@Query() query: PostQueryDto): Promise<Post[]> {
+    return this.postService.findAll(query);
   }
 
   @Get(':id')
@@ -29,8 +35,11 @@ export class PostController {
   @ApiOperation({ summary: 'Create a post' })
   @ApiBody({ type: CreatePostInput })
   @ApiResponse({ status: 201, type: Post })
-  create(@Body() body: CreatePostInput): Promise<Post> {
-    return this.postService.create(body);
+  create(@Body() body: CreatePostInput, @CurrentUser() user: JwtUserPayload): Promise<Post> {
+    return this.postService.create({
+      ...body,
+      authorId: body.authorId ?? user.id,
+    });
   }
 
   @Patch(':id')

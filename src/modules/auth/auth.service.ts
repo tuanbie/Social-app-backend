@@ -53,6 +53,8 @@ export class AuthService {
     const user = Array.isArray(createdList) ? createdList[0] : createdList;
     const token = await this.jwtService.signAsync({
       sub: user.id,
+      id: user.id,
+      username: user.username,
       email: user.email,
     });
 
@@ -81,7 +83,10 @@ export class AuthService {
 
     const token = await this.jwtService.signAsync({
       sub: user.id,
+      id: user.id,
+      username: user.username,
       email: user.email,
+      avatar: user.avatar,
     });
 
     return {
