@@ -1,5 +1,5 @@
 -- AUTO-GENERATED FROM CONNECTED SURREALDB
--- Generated at: 2026-03-23T16:29:24.223Z
+-- Generated at: 2026-03-24T14:56:38.621Z
 
 -- ------------------------------
 -- OPTION
@@ -69,14 +69,14 @@ DEFINE FIELD updated_at ON conversation TYPE datetime DEFAULT time::now() PERMIS
 -- TABLE: friend
 -- ------------------------------
 
-DEFINE TABLE friend TYPE RELATION IN user OUT user SCHEMAFULL PERMISSIONS NONE;
+DEFINE TABLE friend TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
 
-DEFINE FIELD created_at ON friend TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
-DEFINE FIELD in ON friend TYPE record<user> PERMISSIONS FULL;
-DEFINE FIELD out ON friend TYPE record<user> PERMISSIONS FULL;
-DEFINE FIELD status ON friend TYPE string DEFAULT 'pending' ASSERT $value INSIDE ['pending', 'accepted'] PERMISSIONS FULL;
+DEFINE FIELD friend_ids ON friend TYPE array<record<user>> DEFAULT [] PERMISSIONS FULL;
+DEFINE FIELD friend_ids.* ON friend TYPE record<user> PERMISSIONS FULL;
+DEFINE FIELD updated_at ON friend TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD user_id ON friend TYPE record<user> PERMISSIONS FULL;
 
-DEFINE INDEX idx_unique_friend ON friend FIELDS in, out UNIQUE;
+DEFINE INDEX idx_friend_user ON friend FIELDS user_id UNIQUE;
 
 
 -- ------------------------------
@@ -179,6 +179,7 @@ DEFINE FIELD full_name ON user TYPE string PERMISSIONS FULL;
 DEFINE FIELD password ON user TYPE string PERMISSIONS FULL;
 DEFINE FIELD profile ON user TYPE object DEFAULT {  } PERMISSIONS FULL;
 DEFINE FIELD profile.address ON user TYPE none | string PERMISSIONS FULL;
+DEFINE FIELD profile.avatar ON user TYPE none | string PERMISSIONS FULL;
 DEFINE FIELD profile.gender ON user TYPE none | string ASSERT $value INSIDE [NONE, 'MALE', 'FEMALE', 'OTHER'] PERMISSIONS FULL;
 DEFINE FIELD profile.phone ON user TYPE none | string PERMISSIONS FULL;
 DEFINE FIELD status ON user TYPE string DEFAULT 'ACTIVE' ASSERT $value INSIDE ['ACTIVE', 'BLOCK'] PERMISSIONS FULL;

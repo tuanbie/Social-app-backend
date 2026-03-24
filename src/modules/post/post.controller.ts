@@ -19,8 +19,8 @@ export class PostController {
   @Get()
   @ApiOperation({ summary: 'List posts' })
   @ApiResponse({ status: 200, type: [Post] })
-  findAll(@Query() query: PostQueryDto): Promise<Post[]> {
-    return this.postService.findAll(query);
+  findAll(@Query() query: PostQueryDto, @CurrentUser() user: JwtUserPayload): Promise<Post[]> {
+    return this.postService.findFeedForUser(user.id, query);
   }
 
   @Get(':id')
