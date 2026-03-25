@@ -1,5 +1,5 @@
 -- AUTO-GENERATED FROM CONNECTED SURREALDB
--- Generated at: 2026-03-24T14:56:38.621Z
+-- Generated at: 2026-03-25T16:59:08.432Z
 
 -- ------------------------------
 -- OPTION
@@ -26,31 +26,14 @@ DEFINE INDEX idx_unique_block ON block FIELDS in, out UNIQUE;
 DEFINE TABLE comment TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
 
 DEFINE FIELD author ON comment TYPE record<user> PERMISSIONS FULL;
-DEFINE FIELD comments ON comment TYPE array<object> DEFAULT [] PERMISSIONS FULL;
-DEFINE FIELD comments.* ON comment TYPE object PERMISSIONS FULL;
-DEFINE FIELD comments.*.author ON comment TYPE record<user> PERMISSIONS FULL;
-DEFINE FIELD comments.*.content ON comment TYPE string PERMISSIONS FULL;
-DEFINE FIELD comments.*.created_at ON comment TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
-DEFINE FIELD comments.*.id ON comment TYPE string PERMISSIONS FULL;
-DEFINE FIELD comments.*.replies ON comment TYPE array<object> DEFAULT [] PERMISSIONS FULL;
-DEFINE FIELD comments.*.replies.* ON comment TYPE object PERMISSIONS FULL;
-DEFINE FIELD content ON comment TYPE string ASSERT string::len($value) > 0 PERMISSIONS FULL;
+DEFINE FIELD content ON comment TYPE string PERMISSIONS FULL;
 DEFINE FIELD created_at ON comment TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
-DEFINE FIELD image ON comment TYPE none | string PERMISSIONS FULL;
+DEFINE FIELD parent ON comment TYPE none | record<comment> DEFAULT NONE PERMISSIONS FULL;
 DEFINE FIELD post_id ON comment TYPE record<post> PERMISSIONS FULL;
-DEFINE FIELD target ON comment TYPE record<post | comment> PERMISSIONS FULL;
 
-DEFINE INDEX idx_comment_post ON comment FIELDS post_id UNIQUE;
-DEFINE INDEX idx_comment_target ON comment FIELDS target;
-
-
--- ------------------------------
--- TABLE: comment_list
--- ------------------------------
-
-DEFINE TABLE comment_list TYPE ANY SCHEMALESS PERMISSIONS NONE;
-
-
+DEFINE INDEX idx_created ON comment FIELDS created_at;
+DEFINE INDEX idx_parent ON comment FIELDS parent;
+DEFINE INDEX idx_post ON comment FIELDS post_id;
 
 
 -- ------------------------------
@@ -63,20 +46,22 @@ DEFINE FIELD participants ON conversation TYPE array<record<user>> ASSERT array:
 DEFINE FIELD participants.* ON conversation TYPE record<user> PERMISSIONS FULL;
 DEFINE FIELD updated_at ON conversation TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
 
+DEFINE INDEX idx_participants ON conversation FIELDS participants;
+DEFINE INDEX idx_updated_at ON conversation FIELDS updated_at;
 
 
 -- ------------------------------
 -- TABLE: friend
 -- ------------------------------
 
-DEFINE TABLE friend TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
+DEFINE TABLE friend TYPE RELATION IN user OUT user SCHEMAFULL PERMISSIONS NONE;
 
-DEFINE FIELD friend_ids ON friend TYPE array<record<user>> DEFAULT [] PERMISSIONS FULL;
-DEFINE FIELD friend_ids.* ON friend TYPE record<user> PERMISSIONS FULL;
-DEFINE FIELD updated_at ON friend TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
-DEFINE FIELD user_id ON friend TYPE record<user> PERMISSIONS FULL;
+DEFINE FIELD created_at ON friend TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD in ON friend TYPE record<user> PERMISSIONS FULL;
+DEFINE FIELD out ON friend TYPE record<user> PERMISSIONS FULL;
+DEFINE FIELD status ON friend TYPE string DEFAULT 'pending' ASSERT $value INSIDE ['pending', 'accepted', 'declined'] PERMISSIONS FULL;
+DEFINE FIELD updated_at ON friend TYPE datetime VALUE time::now() PERMISSIONS FULL;
 
-DEFINE INDEX idx_friend_user ON friend FIELDS user_id UNIQUE;
 
 
 -- ------------------------------
@@ -103,17 +88,12 @@ DEFINE INDEX idx_unique_like ON like FIELDS in, out UNIQUE;
 
 DEFINE TABLE message TYPE NORMAL SCHEMAFULL PERMISSIONS NONE;
 
-DEFINE FIELD attachments ON message TYPE array<string> DEFAULT [] PERMISSIONS FULL;
-DEFINE FIELD attachments.* ON message TYPE string PERMISSIONS FULL;
 DEFINE FIELD content ON message TYPE string PERMISSIONS FULL;
 DEFINE FIELD conversation ON message TYPE record<conversation> PERMISSIONS FULL;
 DEFINE FIELD created_at ON message TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
-DEFINE FIELD is_read ON message TYPE bool DEFAULT false PERMISSIONS FULL;
-DEFINE FIELD is_revoked ON message TYPE bool DEFAULT false PERMISSIONS FULL;
-DEFINE FIELD receiver ON message TYPE record<user> PERMISSIONS FULL;
 DEFINE FIELD sender ON message TYPE record<user> PERMISSIONS FULL;
 
-DEFINE INDEX idx_message_time ON message FIELDS created_at;
+DEFINE INDEX idx_conv_time ON message FIELDS conversation, created_at;
 
 
 -- ------------------------------
@@ -187,6 +167,18 @@ DEFINE FIELD username ON user TYPE string ASSERT string::len($value) >= 3 PERMIS
 
 DEFINE INDEX idx_user_email ON user FIELDS email UNIQUE;
 DEFINE INDEX idx_user_username ON user FIELDS username UNIQUE;
+
+
+-- ------------------------------
+-- TABLE: user_in_conv
+-- ------------------------------
+
+DEFINE TABLE user_in_conv TYPE RELATION IN user OUT conversation SCHEMAFULL PERMISSIONS NONE;
+
+DEFINE FIELD in ON user_in_conv TYPE record<user> PERMISSIONS FULL;
+DEFINE FIELD last_read_at ON user_in_conv TYPE datetime DEFAULT time::now() PERMISSIONS FULL;
+DEFINE FIELD out ON user_in_conv TYPE record<conversation> PERMISSIONS FULL;
+
 
 
 
