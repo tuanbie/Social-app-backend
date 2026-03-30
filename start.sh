@@ -1,21 +1,18 @@
 #!/bin/bash
 
-# Khởi chạy SurrealDB ở background
-echo "Starting SurrealDB in-memory..."
-surreal start --user ${USERNAME_DB:-root} --pass ${PASSWORD_DB:-root} --bind 0.0.0.0:8000 memory &
+# 1. Khởi chạy SurrealDB lưu vào file (không dùng memory nữa)
+# Database sẽ được lưu tại /data/social_media.db
+echo "Starting SurrealDB with file storage..."
+surreal start --user ${SURREAL_USER:-root} --pass ${SURREAL_PASS:-root} --bind 0.0.0.0:8000 file:/data/social_media.db &
 
-# Chờ cho đến khi cổng 8000 của SurrealDB mở (tối đa 30s)
-echo "Waiting for SurrealDB to be ready..."
-RETRIES=30
+# 2. Đợi cổng 8000 mở
+echo "Waiting for SurrealDB (port 8000)..."
 while ! nc -z localhost 8000; do
   sleep 1
-  RETRIES=$((RETRIES - 1))
-  if [ $RETRIES -eq 0 ]; then
-    echo "SurrealDB failed to start"
-    exit 1
-  fi
 done
 
-echo "SurrealDB is ready! Starting NestJS..."
-# Dùng PORT từ biến môi trường của Render (mặc định thường là 10000 hoặc 3000)
+echo "SurrealDB is ready!"
+
+# 3. Chạy NestJS
+# Render sẽ cấp PORT qua biến môi trường (thường là 10000)
 exec node dist/main.js
