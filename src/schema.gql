@@ -44,7 +44,7 @@ type Mutation {
   createUser(createUserInput: CreateUserInput!): User!
   removeConversation(id: Int!): Conversation!
   removePost(id: ID!): Post!
-  removeUser(id: Int!): User!
+  removeUser(id: ID!): User!
   updateConversation(updateConversationInput: UpdateConversationInput!): Conversation!
   updatePost(updatePostInput: UpdatePostInput!): Post!
   updateUser(updateUserInput: UpdateUserInput!): User!
@@ -60,6 +60,14 @@ type Post {
   status: PostStatus!
 }
 
+input PostQueryInput {
+  authorId: ID
+  keyword: String
+  limit: Int = 10
+  page: Int = 1
+  status: PostStatus
+}
+
 enum PostStatus {
   pending
   published
@@ -68,8 +76,8 @@ enum PostStatus {
 type Query {
   conversation(id: Int!): Conversation!
   post(id: ID!): Post!
-  posts: [Post!]!
-  user(id: Int!): User!
+  posts(query: PostQueryInput): [Post!]!
+  user(id: ID!): User!
 }
 
 input UpdateConversationInput {
@@ -99,7 +107,7 @@ input UpdateUserInput {
   bio: String
   email: String
   full_name: String
-  id: Int!
+  id: ID!
   password: String
   status: UserStatus = ACTIVE
   username: String

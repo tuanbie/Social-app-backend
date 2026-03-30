@@ -1,11 +1,18 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post as HttpPost } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post as HttpPost, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PostService } from './post.service';
-import { CreatePostInput } from './dto/create-post.input';
 import { UpdatePostInput } from './dto/update-post.input';
 import { Post } from './entities/post.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
+import { PostQueryDto } from './dto/post-query.dto';
+import { CreatePostDto } from './dto/create-post.dto';
+import { UpdatePostDto } from './dto/update-post.dto';
 
 @ApiTags('posts')
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
 @Controller('posts')
 export class PostController {
   constructor(private readonly postService: PostService) {}
@@ -13,8 +20,8 @@ export class PostController {
   @Get()
   @ApiOperation({ summary: 'List posts' })
   @ApiResponse({ status: 200, type: [Post] })
-  findAll(): Promise<Post[]> {
-    return this.postService.findAll();
+  findAll(@Query() query: PostQueryDto, @CurrentUser() user: JwtUserPayload): Promise<Post[]> {
+    return this.postService.findFeedForUser(user.id ?? user.sub, query);
   }
 
   @Get(':id')
@@ -27,27 +34,32 @@ export class PostController {
 
   @HttpPost()
   @ApiOperation({ summary: 'Create a post' })
-  @ApiBody({ type: CreatePostInput })
-  @ApiResponse({ status: 201, type: Post })
-  create(@Body() body: CreatePostInput): Promise<Post> {
-    return this.postService.create(body);
+  create(@Body() body: CreatePostDto, @CurrentUser() user: JwtUserPayload): Promise<Post> {
+    return this.postService.create({
+      ...body,
+      authorId: user.id ?? user.sub,
+    });
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a post' })
   @ApiParam({ name: 'id', example: 'post:abc123' })
-  @ApiBody({ type: UpdatePostInput })
+  @ApiBody({ type: UpdatePostDto })
   @ApiResponse({ status: 200, type: Post })
-  update(@Param('id') id: string, @Body() body: Omit<UpdatePostInput, 'id'>): Promise<Post> {
-    return this.postService.update(id, { ...(body as UpdatePostInput), id });
+  update(
+    @Param('id') id: string,
+    @Body() body: UpdatePostDto,
+    @CurrentUser() user: JwtUserPayload,
+  ): Promise<Post> {
+    return this.postService.update(id, { ...(body as UpdatePostInput), id }, user.id ?? user.sub);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a post' })
   @ApiParam({ name: 'id', example: 'post:abc123' })
   @ApiResponse({ status: 200, type: Post })
-  remove(@Param('id') id: string): Promise<Post> {
-    return this.postService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUserPayload): Promise<Post> {
+    return this.postService.remove(id, user.id ?? user.sub);
   }
 }
 
