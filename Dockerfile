@@ -12,7 +12,7 @@ RUN npm run build
 # Stage 3: Runtime
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
-
+RUN mkdir -p /data && chmod 777 /data
 # 1. Copy binary của surreal trực tiếp từ stage 1 (Thay thế cho đoạn curl lỗi)
 COPY --from=surrealdb_bin /surreal /usr/local/bin/surreal
 
