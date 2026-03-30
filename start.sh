@@ -2,6 +2,9 @@
 
 # 1. Khởi chạy SurrealDB lưu vào file (không dùng memory nữa)
 # Database sẽ được lưu tại /data/social_media.db
+mkdir -p /data
+chmod 777 /data
+
 echo "Starting SurrealDB with file storage..."
 surreal start --user ${SURREAL_USER:-root} --pass ${SURREAL_PASS:-root} --bind 0.0.0.0:8000 file:/data/social_media.db &
 
