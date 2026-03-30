@@ -1,22 +1,21 @@
 #!/bin/bash
 
-# 1. Khởi chạy SurrealDB ở background
-# Lưu ý: --bind 0.0.0.0:8000 là quan trọng để NestJS kết nối được
-echo "Starting SurrealDB..."
+# Khởi chạy SurrealDB ở background
+echo "Starting SurrealDB in-memory..."
 surreal start --user ${USERNAME_DB:-root} --pass ${PASSWORD_DB:-root} --bind 0.0.0.0:8000 memory &
 
-# 2. Chờ SurrealDB sẵn sàng (kiểm tra cổng 8000)
+# Chờ cho đến khi cổng 8000 của SurrealDB mở (tối đa 30s)
 echo "Waiting for SurrealDB to be ready..."
-for i in {1..20}; do
-  if nc -z localhost 8000; then
-    echo "SurrealDB is up!"
-    break
-  fi
-  echo "Still waiting for SurrealDB..."
+RETRIES=30
+while ! nc -z localhost 8000; do
   sleep 1
+  RETRIES=$((RETRIES - 1))
+  if [ $RETRIES -eq 0 ]; then
+    echo "SurrealDB failed to start"
+    exit 1
+  fi
 done
 
-# 3. Khởi chạy NestJS
-echo "Starting NestJS on port ${PORT:-3000}..."
-# Sử dụng exec để NestJS trở thành tiến trình chính (PID 1), nhận được signal từ Render
+echo "SurrealDB is ready! Starting NestJS..."
+# Dùng PORT từ biến môi trường của Render (mặc định thường là 10000 hoặc 3000)
 exec node dist/main.js
