@@ -1,23 +1,25 @@
+# Stage 1: Lấy binary của SurrealDB
+FROM surrealdb/surrealdb:latest AS surrealdb_bin
+
+# Stage 2: Build NestJS
 FROM node:22-bookworm-slim AS build
-
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm ci
-
 COPY . .
 RUN npm run build
 
+# Stage 3: Runtime
 FROM node:22-bookworm-slim AS runtime
-
 WORKDIR /app
 
-# Install runtime helpers and SurrealDB CLI/server binary
+# 1. Copy binary của surreal trực tiếp từ stage 1 (Thay thế cho đoạn curl lỗi)
+COPY --from=surrealdb_bin /surreal /usr/local/bin/surreal
+
+# 2. Cài đặt các thư viện runtime cần thiết
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl ca-certificates \
-  && rm -rf /var/lib/apt/lists/* \
-  && curl -sSf https://install.surrealdb.com | sh \
-  && mv /root/.surrealdb/surreal /usr/local/bin/surreal
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci --omit=dev
@@ -27,6 +29,9 @@ COPY --from=build /app/src/database/schema.surql ./dist/database/schema.surql
 COPY docker/start.sh /app/docker/start.sh
 
 RUN chmod +x /app/docker/start.sh
+
+# Khai báo Volume để tránh mất data trên Render (nếu bạn có gắn Disk)
+VOLUME /data
 
 ENV NODE_ENV=production
 ENV PORT=3000
