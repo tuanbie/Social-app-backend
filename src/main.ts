@@ -49,6 +49,7 @@ async function bootstrap() {
     ws: true, // Quan trọng để Surrealist dùng WebSocket
   }));
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = parseInt(process.env.PORT ?? '3000', 10);
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();

@@ -18,7 +18,8 @@ import { AuthModule } from './modules/auth/auth.module';
 
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'), // Tự động sinh file schema
+      // Use __dirname so production (dist/) and dev (src/) both resolve to a writable folder
+      autoSchemaFile: join(__dirname, 'schema.gql'),
       sortSchema: true,
       introspection: true,
       playground: false,
