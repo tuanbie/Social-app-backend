@@ -45,9 +45,30 @@ export function normalizeSurrealUrl(raw: string): string {
   }
 }
 
+function isSurrealCloudUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.includes('surreal.cloud');
+  } catch {
+    return false;
+  }
+}
+
+/** Không đăng nhập: local (SKIP) hoặc Cloud khi bật CLOUD_NO_AUTH */
+function shouldSkipAuth(url: string): boolean {
+  if (envFlag('SURREAL_SKIP_AUTH', 'DB_NO_AUTH')) return true;
+  if (envFlag('SURREAL_CLOUD_NO_AUTH', 'CLOUD_NO_AUTH')) {
+    return isSurrealCloudUrl(url);
+  }
+  return false;
+}
+
 /**
- * Token: giống CLI — endpoint (thường wss) → authenticate(token) → use(ns, db).
- * Gói authentication trong connect() đôi khi lệch thứ tự với Cloud.
+ * Thứ tự:
+ * 1. Có SURREALDB_TOKEN / DB_TOKEN → connect → authenticate(token) → use
+ * 2. SURREAL_SKIP_AUTH=1 hoặc (SURREAL_CLOUD_NO_AUTH=1 + URL surreal.cloud) → connect → use
+ * 3. Còn lại → connect → signin(username/password) → use
+ *
+ * Cloud không auth: nhiều instance vẫn chặn query không token — chỉ phù hợp nếu policy cho phép.
  */
 export async function connectSurreal(
   db: Surreal,
@@ -69,7 +90,7 @@ export async function connectSurreal(
     return;
   }
 
-  if (envFlag('SURREAL_SKIP_AUTH', 'DB_NO_AUTH')) {
+  if (shouldSkipAuth(url)) {
     await db.connect(url);
     await db.use({ namespace, database });
     return;
