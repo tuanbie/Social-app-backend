@@ -43,9 +43,8 @@ ENV PORT=3000
 ENV DB_URL=ws://127.0.0.1:8000/rpc
 ENV SURREAL_PATH=/data/social_media.db
 
-# Tạo thư mục data nếu bạn muốn dùng persistent disk sau này
+# /data: tạo sẵn thư mục; trên Railway gắn persistent disk tại /data (Settings → tab đĩa của service)
 RUN mkdir -p /data && chmod 777 /data
-VOLUME /data
 
 EXPOSE 3000
 
