@@ -1,12 +1,14 @@
 #!/bin/bash
 
-# 1. Khởi chạy SurrealDB lưu vào file (không dùng memory nữa)
-# Database sẽ được lưu tại /data/social_media.db
+# 1. Khởi chạy SurrealDB (SurrealDB 3.x: dùng surrealkv:// — backend "file:" đã bỏ)
+# SURREAL_PATH mặc định khớp Dockerfile; ví dụ: /data/social_media.db → surrealkv:///data/social_media.db
 mkdir -p /data
 chmod 777 /data
 
-echo "Starting SurrealDB with file storage..."
-surreal start --user ${SURREAL_USER:-root} --pass ${SURREAL_PASS:-root} --bind 0.0.0.0:8000 file:/data/social_media.db &
+SURREAL_PATH="${SURREAL_PATH:-/data/social_media.db}"
+
+echo "Starting SurrealDB (surrealkv at ${SURREAL_PATH})..."
+surreal start --user "${SURREAL_USER:-root}" --pass "${SURREAL_PASS:-root}" --bind 0.0.0.0:8000 "surrealkv://${SURREAL_PATH}" &
 
 # 2. Đợi cổng 8000 mở (có giới hạn để deploy không treo vô hạn khi Surreal lỗi)
 echo "Waiting for SurrealDB (port 8000)..."
