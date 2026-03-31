@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { appSettings } from 'src/common/config/appSetting';
 import { Surreal } from 'surrealdb';
+import { connectSurreal } from 'src/database/surreal-connect.util';
 
 @Injectable()
 export class SurrealService implements OnModuleInit, OnModuleDestroy {
@@ -15,21 +16,10 @@ export class SurrealService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     try {
-      await this.client.connect(appSettings.db.url);
-
-      await this.client.signin({
-        username: appSettings.db.username,
-        password: appSettings.db.password,
-      });
-
-      await this.client.use({
-        namespace: appSettings.db.namespace,
-        database: appSettings.db.database,
-      });
-
-      this.logger.log('🚀 Connected to SurrealDB successfully');
+      await connectSurreal(this.client, appSettings.db);
+      this.logger.log('Kết nối SurrealDB thành công');
     } catch (error) {
-      this.logger.error('❌ Failed to connect to SurrealDB', error);
+      this.logger.error('Kết nối SurrealDB thất bại', error);
     }
   }
 
