@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
-import { SurrealService } from 'src/database/surreal.service';
 import { User, UserStatus } from './entities/user.entity';
 import { StringRecordId, Table } from 'surrealdb';
 import * as bcrypt from 'bcrypt';
@@ -16,6 +15,7 @@ import { UserProfileResponseDto } from './dto/user-profile.response.dto';
 import { UserBasicDto } from './dto/user-basic.dto';
 import { UserFriendStatusDto, type FriendStatus } from './dto/user-friend-status.dto';
 import { UserPostPreviewDto } from './dto/user-post-preview.dto';
+import { SurrealService } from '../../database/surreal.service';
 
 @Injectable()
 export class UserService {

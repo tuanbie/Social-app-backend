@@ -1,5 +1,5 @@
 -- AUTO-GENERATED FROM CONNECTED SURREALDB
--- Generated at: 2026-03-27T13:43:32.744Z
+-- Generated at: 2026-04-01T13:41:19.797Z
 
 -- ------------------------------
 -- OPTION

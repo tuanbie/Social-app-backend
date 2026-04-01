@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Surreal } from 'surrealdb';
-import { appSettings } from 'src/common/config/appSetting';
+import { appSettings } from '../common/config/appSetting';
 
 async function main() {
   const db = new Surreal();
