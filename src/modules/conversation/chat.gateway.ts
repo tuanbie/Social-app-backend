@@ -35,7 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwt: JwtService,
     private readonly conversationService: ConversationService,
-  ) {}
+  ) { }
 
   private normalizeUserId(raw: unknown): string {
     if (raw == null) return '';
@@ -130,11 +130,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         event: 'new_message',
         data: { message },
       };
-      this.broadcastToUsers(
-        [senderId, this.normalizeUserId(body.receiverId)],
-        payload,
-      );
-      return { event: 'sent', data: { message } };
+      this.broadcastToUsers([this.normalizeUserId(body.receiverId)], payload);
+      // return { event: 'sent', data: { message } };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       return { event: 'error', data: { message: msg } };
