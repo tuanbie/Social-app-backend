@@ -45,30 +45,17 @@ export function normalizeSurrealUrl(raw: string): string {
   }
 }
 
-function isSurrealCloudUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.includes('surreal.cloud');
-  } catch {
-    return false;
-  }
-}
-
-/** Không đăng nhập: local (SKIP) hoặc Cloud khi bật CLOUD_NO_AUTH */
-function shouldSkipAuth(url: string): boolean {
-  if (envFlag('SURREAL_SKIP_AUTH', 'DB_NO_AUTH')) return true;
-  if (envFlag('SURREAL_CLOUD_NO_AUTH', 'CLOUD_NO_AUTH')) {
-    return isSurrealCloudUrl(url);
-  }
-  return false;
+/** Chỉ khi SURREAL_SKIP_AUTH=1 (thường là Surreal local không bật auth). Không dùng trên Cloud — sẽ anonymous và query bị chặn. */
+function shouldSkipAuth(): boolean {
+  return envFlag('SURREAL_SKIP_AUTH', 'DB_NO_AUTH');
 }
 
 /**
- * Thứ tự:
- * 1. Có SURREALDB_TOKEN / DB_TOKEN → connect → authenticate(token) → use
- * 2. SURREAL_SKIP_AUTH=1 hoặc (SURREAL_CLOUD_NO_AUTH=1 + URL surreal.cloud) → connect → use
- * 3. Còn lại → connect → signin(username/password) → use
+ * Một lần `connect(url, { namespace, database, authentication })` — tránh session ẩn danh / signin lệch bước.
  *
- * Cloud không auth: nhiều instance vẫn chặn query không token — chỉ phù hợp nếu policy cho phép.
+ * 1. SURREALDB_TOKEN / DB_TOKEN → JWT
+ * 2. SURREAL_SKIP_AUTH=1 → không đăng nhập (local)
+ * 3. USERNAME_DB + PASSWORD_DB → root / namespace / database (SURREAL_AUTH_MODE)
  */
 export async function connectSurreal(
   db: Surreal,
@@ -84,31 +71,39 @@ export async function connectSurreal(
     process.env.SURREALDB_TOKEN ?? process.env.DB_TOKEN ?? '',
   );
   if (token) {
-    await db.connect(url);
-    await db.authenticate(token);
-    await db.use({ namespace, database });
+    await db.connect(url, {
+      namespace,
+      database,
+      authentication: token,
+    });
     return;
   }
 
-  if (shouldSkipAuth(url)) {
-    await db.connect(url);
-    await db.use({ namespace, database });
+  if (shouldSkipAuth()) {
+    await db.connect(url, { namespace, database });
     return;
+  }
+
+  if (!username || !password) {
+    throw new Error(
+      'Thiếu USERNAME_DB/PASSWORD_DB hoặc SURREALDB_TOKEN. Surreal Cloud: Surrealist → Authentication → tạo Root user.',
+    );
   }
 
   const mode = (process.env.SURREAL_AUTH_MODE ?? 'root').toLowerCase();
 
-  await db.connect(url);
-
-  let auth: AnyAuth;
+  let authentication: AnyAuth;
   if (mode === 'database') {
-    auth = { namespace, database, username, password };
+    authentication = { namespace, database, username, password };
   } else if (mode === 'namespace') {
-    auth = { namespace, username, password };
+    authentication = { namespace, username, password };
   } else {
-    auth = { username, password };
+    authentication = { username, password };
   }
 
-  await db.signin(auth);
-  await db.use({ namespace, database });
+  await db.connect(url, {
+    namespace,
+    database,
+    authentication,
+  });
 }
