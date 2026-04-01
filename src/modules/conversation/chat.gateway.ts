@@ -21,6 +21,7 @@ type SendPayload = {
 
 @Injectable()
 @WebSocketGateway({
+  transports: ['websocket', 'polling'],
   path: '/chat',
   cors: { origin: '*' },
 })
