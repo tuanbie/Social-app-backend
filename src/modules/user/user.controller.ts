@@ -25,7 +25,6 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
 import { UserProfileQueryDto } from './dto/user-profile-query.dto';
-import { UserProfileResponseDto } from './dto/user-profile.response.dto';
 
 @ApiTags('users')
 @ApiBearerAuth('access-token')
@@ -43,19 +42,33 @@ export class UserController {
 
   /** Static paths before @Get(':id') so "friends" / "blocks" are not captured as ids. */
   @Get('friends/pending')
-  @ApiOperation({ summary: 'List pending friend requests sent by current user' })
-  async getPendingFriends(@CurrentUser() viewer: JwtUserPayload) {
+  @ApiOperation({
+    summary: 'Lời mời kết bạn đang chờ (do bạn gửi)',
+    description:
+      'Bảng `friend`: `status=pending` và `in` = current user (outgoing). Mỗi phần tử có `in_user`, `out_user` (id, full_name, username, avatar).',
+  })
+  async getPendingFriends(
+    @CurrentUser() viewer: JwtUserPayload,
+  ) {
     return await this.userService.listPendingFriends(viewer.id ?? viewer.sub);
   }
 
   @Get('friends')
-  @ApiOperation({ summary: 'List accepted friends of current user' })
+  @ApiOperation({
+    summary: 'Danh sách bạn bè (accepted)',
+    description:
+      'Cạnh `friend` có `status=accepted` và liên quan tới current user. Kèm `in_user` / `out_user`.',
+  })
   async getFriends(@CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.listFriends(viewer.id ?? viewer.sub);
   }
 
   @Get('blocks')
-  @ApiOperation({ summary: 'List blocked users' })
+  @ApiOperation({
+    summary: 'Danh sách user bạn đã chặn',
+    description:
+      'Bảng `block`: các cạnh có `in` = current user. Mỗi phần tử có `in_user`, `out_user` (id, full_name, username, avatar).',
+  })
   async getBlocked(@CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.listBlocked(viewer.id ?? viewer.sub);
   }
@@ -63,28 +76,30 @@ export class UserController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a user by id' })
   @ApiParam({ name: 'id', example: 'user:abc123' })
-  @ApiResponse({ status: 200, type: User })
   async findOne(@Param('id') id: string) {
     return await this.userService.findOne(id);
   }
 
   @Get(':id/profile')
-  @ApiOperation({ summary: 'Get user profile (basic info, published posts, friend status)' })
+  @ApiOperation({
+    summary: 'Get user profile (basic info, published posts, friend status)',
+    description:
+      'Mỗi bài trong `posts` có `likes_count` và `comments_count` giống feed. ' +
+      '`friend`: quan hệ `friend` + cờ `blocked_by_me` / `blocked_by_them` (bảng `block`).',
+  })
   @ApiParam({ name: 'id', example: 'user:abc123' })
-  @ApiResponse({ status: 200, type: UserProfileResponseDto })
   async getProfile(
     @Param('id') id: string,
     @Query() query: UserProfileQueryDto,
     @CurrentUser() viewer: JwtUserPayload,
-  ): Promise<UserProfileResponseDto> {
+  ) {
     return await this.userService.getUserProfile(viewer.id ?? viewer.sub, id, query);
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a user' })
   @ApiBody({ type: CreateUserInput })
-  @ApiResponse({ status: 201, type: User })
-  async create(@Body() body: CreateUserInput): Promise<User> {
+  async create(@Body() body: CreateUserInput) {
     return await this.userService.create(body);
   }
 
@@ -92,7 +107,6 @@ export class UserController {
   @ApiOperation({ summary: 'Update a user (own profile only)' })
   @ApiParam({ name: 'id', example: 'user:abc123' })
   @ApiBody({ type: UpdateUserInput })
-  @ApiResponse({ status: 200, type: User })
   async update(
     @Param('id') id: string,
     @Body() body: Omit<UpdateUserInput, 'id'>,
@@ -108,34 +122,48 @@ export class UserController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a user (own account only)' })
   @ApiParam({ name: 'id', example: 'user:abc123' })
-  @ApiResponse({ status: 200, type: User })
   async remove(@Param('id') id: string, @CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.remove(id, viewer.id ?? viewer.sub);
   }
 
   @Post(':id/friend')
-  @ApiOperation({ summary: 'Send or accept friend request' })
+  @ApiOperation({
+    summary: 'Gửi / chấp nhận lời mời kết bạn',
+    description:
+      'Bảng `friend` (`pending` | `accepted` | `declined`). Có block giữa hai người thì không gửi được. ' +
+      'Nếu đối phương đã gửi pending tới bạn → merge `accepted`. Nếu trước đó `declined` → gửi lại thành `pending`.',
+  })
   @ApiParam({ name: 'id', example: 'user:abc123' })
   async addFriend(@Param('id') id: string, @CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.sendFriendRequest(viewer.id ?? viewer.sub, id);
   }
 
   @Post(':id/unfriend')
-  @ApiOperation({ summary: 'Cancel friendship / friend request' })
+  @ApiOperation({
+    summary: 'Hủy kết bạn hoặc lời mời / từ chối (xóa cạnh friend)',
+    description: 'Xóa cạnh `friend` giữa hai user (pending, accepted, declined).',
+  })
   @ApiParam({ name: 'id', example: 'user:abc123' })
   async unfriend(@Param('id') id: string, @CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.cancelFriend(viewer.id ?? viewer.sub, id);
   }
 
   @Post(':id/block')
-  @ApiOperation({ summary: 'Block a user' })
+  @ApiOperation({
+    summary: 'Chặn user',
+    description:
+      'Tạo cạnh `block` (in=you → out=target). Xóa cạnh `friend` nếu đang có. Đã chặn rồi thì trả về bản ghi hiện có.',
+  })
   @ApiParam({ name: 'id', example: 'user:abc123' })
   async block(@Param('id') id: string, @CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.blockUser(viewer.id ?? viewer.sub, id);
   }
 
   @Post(':id/unblock')
-  @ApiOperation({ summary: 'Unblock a user' })
+  @ApiOperation({
+    summary: 'Bỏ chặn',
+    description: 'Xóa cạnh `block` do bạn chặn họ (in=you, out=target).',
+  })
   @ApiParam({ name: 'id', example: 'user:abc123' })
   async unblock(@Param('id') id: string, @CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.unblockUser(viewer.id ?? viewer.sub, id);

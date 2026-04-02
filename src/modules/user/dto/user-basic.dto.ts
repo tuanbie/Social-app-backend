@@ -3,27 +3,27 @@ import { UserStatus } from '../entities/user.entity';
 
 export class UserBasicDto {
   @ApiProperty({ example: 'user:abc123' })
-  id: string;
+  id!: string;
 
   @ApiPropertyOptional({ nullable: true })
-  username?: string | null;
+  username?: string | null | undefined;
 
   @ApiPropertyOptional({ nullable: true })
-  full_name?: string | null;
+  full_name?: string | null | undefined;
 
   @ApiPropertyOptional({ nullable: true })
-  email?: string | null;
+  email?: string | null | undefined;
 
   @ApiPropertyOptional({ nullable: true })
-  avatar?: string | null;
+  avatar?: string | null | undefined;
 
   @ApiPropertyOptional({ nullable: true })
-  bio?: string | null;
+  bio?: string | null | undefined;
 
   @ApiProperty({ enum: UserStatus, example: UserStatus.ACTIVE })
-  status: UserStatus;
+  status!: UserStatus;
 
   @ApiProperty({ example: '2026-03-24T15:22:36.130Z' })
-  created_at: Date;
+  created_at!: Date;
 }
 

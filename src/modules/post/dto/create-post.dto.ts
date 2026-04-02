@@ -6,12 +6,12 @@ export class CreatePostDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  content: string;
+  content!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  image: string;
+  image!: string;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

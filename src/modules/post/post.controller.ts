@@ -34,6 +34,8 @@ import { CreateCommentDto } from './dto/create-comment.dto';
 import { CommentWithAuthorDto } from './dto/comment-with-author.dto';
 import { LikeResponseDto } from './dto/like-response.dto';
 import { SetLikeDto } from './dto/set-like.dto';
+import { CommentListQueryDto } from './dto/comment-list-query.dto';
+import { CommentListResponseDto } from './dto/comment-list-response.dto';
 
 @ApiTags('posts')
 @ApiBearerAuth('access-token')
@@ -43,7 +45,7 @@ export class PostController {
   constructor(
     private readonly postService: PostService,
     private readonly commentService: CommentService,
-  ) {}
+  ) { }
 
   @HttpPost(':postId/like')
   @HttpCode(200)
@@ -58,7 +60,7 @@ export class PostController {
     @Param('postId') postId: string,
     @Body() body: SetLikeDto,
     @CurrentUser() user: JwtUserPayload,
-  ): Promise<LikeResponseDto> {
+  ) {
     return this.postService.setLikePost(
       user.id ?? user.sub,
       postId,
@@ -75,8 +77,23 @@ export class PostController {
     @Param('postId') postId: string,
     @Body() body: CreateCommentDto,
     @CurrentUser() user: JwtUserPayload,
-  ): Promise<CommentWithAuthorDto> {
+  ) {
     return this.commentService.createOnPost(user.id ?? user.sub, postId, body);
+  }
+
+  @Get(':postId/comments')
+  @ApiOperation({
+    summary: 'Danh sách bình luận gốc trên bài (phân trang)',
+    description:
+      'Chỉ comment có `parent` NONE. Mỗi dòng có `replies_count` (số reply trực tiếp). Query: `page`, `limit`.',
+  })
+  @ApiParam({ name: 'postId', example: 'post:abc123' })
+  @ApiResponse({ status: 200, type: CommentListResponseDto })
+  listCommentsOnPost(
+    @Param('postId') postId: string,
+    @Query() query: CommentListQueryDto,
+  ) {
+    return this.commentService.listCommentsForPost(postId, query);
   }
 
   @Get()
@@ -89,7 +106,7 @@ export class PostController {
   findAll(
     @Query() query: PostQueryDto,
     @CurrentUser() user: JwtUserPayload,
-  ): Promise<PostFeedResponseDto> {
+  ) {
     return this.postService.findFeedForUser(user.id ?? user.sub, query);
   }
 
@@ -97,13 +114,13 @@ export class PostController {
   @ApiOperation({ summary: 'Chi tiết một bài (kèm author)' })
   @ApiParam({ name: 'id', example: 'post:abc123' })
   @ApiResponse({ status: 200, type: PostWithAuthorDto })
-  findOne(@Param('id') id: string): Promise<PostWithAuthorDto> {
+  findOne(@Param('id') id: string) {
     return this.postService.findOneWithAuthor(id);
   }
 
   @HttpPost()
   @ApiOperation({ summary: 'Create a post' })
-  create(@Body() body: CreatePostDto, @CurrentUser() user: JwtUserPayload): Promise<Post> {
+  create(@Body() body: CreatePostDto, @CurrentUser() user: JwtUserPayload) {
     return this.postService.create({
       ...body,
       authorId: user.id ?? user.sub,
@@ -119,7 +136,7 @@ export class PostController {
     @Param('id') id: string,
     @Body() body: UpdatePostDto,
     @CurrentUser() user: JwtUserPayload,
-  ): Promise<Post> {
+  ) {
     return this.postService.update(id, { ...(body as UpdatePostInput), id }, user.id ?? user.sub);
   }
 
@@ -127,7 +144,7 @@ export class PostController {
   @ApiOperation({ summary: 'Delete a post' })
   @ApiParam({ name: 'id', example: 'post:abc123' })
   @ApiResponse({ status: 200, type: Post })
-  remove(@Param('id') id: string, @CurrentUser() user: JwtUserPayload): Promise<Post> {
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUserPayload) {
     return this.postService.remove(id, user.id ?? user.sub);
   }
 }

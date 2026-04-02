@@ -11,16 +11,16 @@ import { StringRecordId, Table } from 'surrealdb';
 import * as bcrypt from 'bcrypt';
 import { PostStatus } from '../post/entities/post.entity';
 import { UserProfileQueryDto } from './dto/user-profile-query.dto';
-import { UserProfileResponseDto } from './dto/user-profile.response.dto';
 import { UserBasicDto } from './dto/user-basic.dto';
-import { UserFriendStatusDto, type FriendStatus } from './dto/user-friend-status.dto';
-import { UserPostPreviewDto } from './dto/user-post-preview.dto';
 import { SurrealService } from '../../database/surreal.service';
+import { PostService } from '../post/post.service';
 
 @Injectable()
 export class UserService {
-
-  constructor(private readonly surreal: SurrealService) { }
+  constructor(
+    private readonly surreal: SurrealService,
+    private readonly postService: PostService,
+  ) { }
 
   private unwrapOne<T>(result: any): T {
     if (Array.isArray(result)) return result[0];
@@ -55,7 +55,106 @@ export class UserService {
     return typeof id === 'string' ? this.asUserRid(id) : this.asUserRid(String(id));
   }
 
-  async create(createUserInput: CreateUserInput): Promise<User> {
+  /** Chuẩn hóa `in` / `out` trên cạnh relation (string hoặc RecordId). */
+  private edgeRid(v: unknown): string {
+    if (v == null) return '';
+    const s = typeof v === 'string' ? v : String(v);
+    return this.asUserRid(s);
+  }
+
+  private async allBlocks(): Promise<any[]> {
+    return (await this.surreal.client.select<any>(new Table('block')).json()) ?? [];
+  }
+
+  /** Block một chiều: `blocker` chặn `blocked`. */
+  private findDirectedBlock(
+    blocker: string,
+    blocked: string,
+    rows: any[],
+  ): Record<string, unknown> | undefined {
+    const b = this.asUserRid(blocker);
+    const t = this.asUserRid(blocked);
+    return (rows ?? []).find((r) => this.edgeRid(r?.in) === b && this.edgeRid(r?.out) === t);
+  }
+
+  private hasBlockBetween(a: string, b: string, rows: any[]): boolean {
+    return (
+      !!this.findDirectedBlock(a, b, rows) || !!this.findDirectedBlock(b, a, rows)
+    );
+  }
+
+  private previewFallback(rid: string) {
+    const id = this.asUserRid(rid);
+    return { id, full_name: null, username: null, avatar: null };
+  }
+
+  /** Load id, full_name, username, avatar cho nhiều user (batch). */
+  private async fetchUserPreviewMap(ids: string[]) {
+    const unique = [...new Set(ids.map((x) => this.asUserRid(x)).filter(Boolean))];
+    const map = new Map<string, any>();
+    await Promise.all(
+      unique.map(async (id) => {
+        try {
+          const row = await this.surreal.client.select<any>(new StringRecordId(id)).json();
+          const u = this.unwrapOne<any>(row);
+          if (!u) return;
+          const uid = this.asUserRid(String(u.id ?? id));
+          map.set(uid, {
+            id: uid,
+            full_name: u.full_name ?? null,
+            username: u.username ?? null,
+            avatar: u.avatar ?? null,
+          });
+        } catch {
+          // user không tồn tại / lỗi
+        }
+      }),
+    );
+    return map;
+  }
+
+  private async mapFriendEdgesWithUsers(rows: any[]) {
+    const ids: string[] = [];
+    for (const r of rows) {
+      ids.push(this.edgeRid(r?.in), this.edgeRid(r?.out));
+    }
+    const umap = await this.fetchUserPreviewMap(ids);
+    return rows.map((r) => {
+      const i = this.edgeRid(r?.in);
+      const o = this.edgeRid(r?.out);
+      const ca = r?.created_at;
+      const ua = r?.updated_at;
+      return {
+        id: String(r?.id ?? ''),
+        status: r?.status,
+        created_at:
+          ca instanceof Date ? ca : ca != null ? new Date(ca as string | number) : undefined,
+        updated_at:
+          ua instanceof Date ? ua : ua != null ? new Date(ua as string | number) : undefined,
+        in_user: umap.get(i) ?? this.previewFallback(i),
+        out_user: umap.get(o) ?? this.previewFallback(o),
+      };
+    });
+  }
+
+  private async mapBlockEdgesWithUsers(rows: any[]) {
+    const ids: string[] = [];
+    for (const r of rows) {
+      ids.push(this.edgeRid(r?.in), this.edgeRid(r?.out));
+    }
+    const umap = await this.fetchUserPreviewMap(ids);
+    return rows.map((r) => {
+      const i = this.edgeRid(r?.in);
+      const o = this.edgeRid(r?.out);
+      return {
+        id: String(r?.id ?? ''),
+        in_user: umap.get(i) ?? this.previewFallback(i),
+        out_user: umap.get(o) ?? this.previewFallback(o),
+      };
+    });
+  }
+
+  async create(createUserInput: CreateUserInput) {
     const users = await this.allUsers();
     const existingByEmail = users.find((u) => u?.email === createUserInput.email);
     if (existingByEmail) {
@@ -88,7 +187,7 @@ export class UserService {
     return this.normalize(user);
   }
 
-  async findAll(): Promise<User[]> {
+  async findAll() {
     const rows = await this.surreal.client.select<User>(new Table('user')).json();
     return (rows ?? []).map((p) => this.normalize(p));
   }
@@ -97,7 +196,7 @@ export class UserService {
     viewerUserId: string,
     targetUserId: string,
     query: UserProfileQueryDto,
-  ): Promise<UserProfileResponseDto> {
+  ) {
     const viewerRid = this.asUserRid(viewerUserId);
     const targetRid = this.asUserRid(targetUserId);
 
@@ -134,28 +233,34 @@ export class UserService {
       .sort((a: any, b: any) => b.created_at.getTime() - a.created_at.getTime());
 
     const paged = postsFiltered.slice((page - 1) * limit, page * limit);
-    const postPreviews: UserPostPreviewDto[] = paged.map((p: any) => ({
-      id: p.id,
-      content: p.content ?? null,
-      image: p.image ?? null,
-      files: p.files ?? [],
-      author: p.author,
-      status: p.status,
-      created_at: p.created_at,
-    }));
+    const postIds = paged.map((p: any) => p.id);
+    const { likes, comments } = await this.postService.getEngagementStatsForPostIds(postIds);
 
-    // friend status between viewer and target
-    const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
-    const friend = (friendRows ?? []).find((f) => {
-      const fin = f?.in;
-      const fout = f?.out;
-      return (fin === viewerRid && fout === targetRid) || (fin === targetRid && fout === viewerRid);
+    const postPreviews: any[] = paged.map((p: any) => {
+      const pid = this.postService.normalizePostRecordId(p.id);
+      return {
+        id: p.id,
+        content: p.content ?? null,
+        image: p.image ?? null,
+        files: p.files ?? [],
+        author: p.author,
+        status: p.status,
+        created_at: p.created_at,
+        likes_count: likes.get(pid) ?? 0,
+        comments_count: comments.get(pid) ?? 0,
+      };
     });
 
-    const status = (friend?.status ?? null) as FriendStatus | null;
-    const friendResp: UserFriendStatusDto = {
+    const blockRows = await this.allBlocks();
+    const friend = await this.findFriendEdge(viewerRid, targetRid);
+    const status = (friend?.status ?? null) as any | null;
+
+    const friendResp: any = {
       is_friend: status === 'accepted',
-      status,
+      status:
+        status && ['pending', 'accepted', 'declined'].includes(status) ? status : null,
+      blocked_by_me: !!this.findDirectedBlock(viewerRid, targetRid, blockRows),
+      blocked_by_them: !!this.findDirectedBlock(targetRid, viewerRid, blockRows),
     };
 
     return {
@@ -165,12 +270,17 @@ export class UserService {
     };
   }
 
-  private async findFriendEdge(viewerRid: string, targetRid: string) {
+  private async findFriendEdge(
+    viewerRid: string,
+    targetRid: string,
+  ) {
     const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
+    const v = this.asUserRid(viewerRid);
+    const t = this.asUserRid(targetRid);
     return (friendRows ?? []).find((f) => {
-      const fin = f?.in;
-      const fout = f?.out;
-      return (fin === viewerRid && fout === targetRid) || (fin === targetRid && fout === viewerRid);
+      const fin = this.edgeRid(f?.in);
+      const fout = this.edgeRid(f?.out);
+      return (fin === v && fout === t) || (fin === t && fout === v);
     });
   }
 
@@ -181,19 +291,34 @@ export class UserService {
       throw new BadRequestException('Cannot friend yourself');
     }
 
+    const blockRows = await this.allBlocks();
+    if (this.hasBlockBetween(viewerRid, targetRid, blockRows)) {
+      throw new BadRequestException('Cannot send friend request while a block exists');
+    }
+
     const existing = await this.findFriendEdge(viewerRid, targetRid);
     if (existing) {
-      if (existing.status === 'blocked') {
-        throw new BadRequestException('This relation is blocked');
-      }
-      if (existing.status === 'accepted') {
+      const st = String(existing.status ?? '');
+      if (st === 'accepted') {
         return existing;
       }
-      // nếu target đã gửi lời mời cho viewer thì auto accept
-      if (existing.out === viewerRid && existing.in === targetRid && existing.status === 'pending') {
+      if (st === 'pending') {
+        const ein = this.edgeRid(existing.in);
+        const eout = this.edgeRid(existing.out);
+        // Họ đã gửi lời mời tới mình: in=target, out=viewer → chấp nhận
+        if (ein === targetRid && eout === viewerRid) {
+          const updated = await this.surreal.client
+            .update(new StringRecordId(String(existing.id)))
+            .merge({ status: 'accepted' })
+            .json();
+          return this.unwrapOne(updated);
+        }
+        return existing;
+      }
+      if (st === 'declined') {
         const updated = await this.surreal.client
-          .update(new StringRecordId(existing.id))
-          .merge({ status: 'accepted' })
+          .update(new StringRecordId(String(existing.id)))
+          .merge({ status: 'pending' })
           .json();
         return this.unwrapOne(updated);
       }
@@ -215,29 +340,38 @@ export class UserService {
     const viewerRid = this.asUserRid(viewerId);
     const targetRid = this.asUserRid(targetId);
     const existing = await this.findFriendEdge(viewerRid, targetRid);
-    if (!existing) {
+    if (!existing?.id) {
       throw new NotFoundException('Friend relation not found');
     }
-    await this.surreal.client.delete(new StringRecordId(existing.id)).json();
+    await this.surreal.client.delete(new StringRecordId(String(existing.id))).json();
     return { success: true };
   }
 
+  /** Lời mời đang chờ do **chính user gửi** (`in` = viewer, `out` = đối phương). */
   async listPendingFriends(viewerId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
-    const pending = (friendRows ?? []).filter(
-      (f) => f?.status === 'pending' && f?.out === viewerRid,
+    const filtered = (friendRows ?? []).filter(
+      (f) =>
+        f?.status === 'pending' && this.edgeRid(f?.in) === viewerRid,
     );
-    return pending;
+    return this.mapFriendEdgesWithUsers(filtered);
   }
 
   async listFriends(viewerId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
     const accepted = (friendRows ?? []).filter((f) => f?.status === 'accepted');
-    return accepted.filter((f) => f?.in === viewerRid || f?.out === viewerRid);
+    const filtered = accepted.filter(
+      (f) => this.edgeRid(f?.in) === viewerRid || this.edgeRid(f?.out) === viewerRid,
+    );
+    return this.mapFriendEdgesWithUsers(filtered);
   }
 
+  /**
+   * Chặn user (bảng `block`: in = viewer → out = target).
+   * Xóa cạnh `friend` giữa hai người nếu có.
+   */
   async blockUser(viewerId: string, targetId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const targetRid = this.asUserRid(targetId);
@@ -245,47 +379,50 @@ export class UserService {
       throw new BadRequestException('Cannot block yourself');
     }
 
-    const existing = await this.findFriendEdge(viewerRid, targetRid);
-    if (existing) {
-      const updated = await this.surreal.client
-        .update(new StringRecordId(existing.id))
-        .merge({ status: 'blocked' })
-        .json();
-      return this.unwrapOne(updated);
+    const blockRows = await this.allBlocks();
+    const existingBlock = this.findDirectedBlock(viewerRid, targetRid, blockRows);
+    if (existingBlock) {
+      return existingBlock;
+    }
+
+    const fr = await this.findFriendEdge(viewerRid, targetRid);
+    if (fr?.id) {
+      await this.surreal.client.delete(new StringRecordId(String(fr.id))).json();
     }
 
     const created = await this.surreal.client
       .relate(
         new StringRecordId(viewerRid),
-        new Table('friend'),
+        new Table('block'),
         new StringRecordId(targetRid),
-        { status: 'blocked' },
+        {},
       )
       .json();
     return this.unwrapOne(created);
   }
 
+  /** Danh sách user mà viewer đã chặn (`in` = viewer). */
   async listBlocked(viewerId: string) {
     const viewerRid = this.asUserRid(viewerId);
-    const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
-    const blocked = (friendRows ?? []).filter(
-      (f) => f?.status === 'blocked' && (f?.in === viewerRid || f?.out === viewerRid),
-    );
-    return blocked;
+    const blockRows = await this.allBlocks();
+    const filtered = blockRows.filter((b) => this.edgeRid(b?.in) === viewerRid);
+    return this.mapBlockEdgesWithUsers(filtered);
   }
 
+  /** Bỏ chặn: chỉ xóa cạnh viewer → target (không xóa chiều ngược). */
   async unblockUser(viewerId: string, targetId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const targetRid = this.asUserRid(targetId);
-    const existing = await this.findFriendEdge(viewerRid, targetRid);
-    if (!existing) {
+    const blockRows = await this.allBlocks();
+    const existing = this.findDirectedBlock(viewerRid, targetRid, blockRows);
+    if (!existing?.id) {
       throw new NotFoundException('Block relation not found');
     }
-    await this.surreal.client.delete(new StringRecordId(existing.id)).json();
+    await this.surreal.client.delete(new StringRecordId(String(existing.id))).json();
     return { success: true };
   }
 
-  async findOne(id: string): Promise<User> {
+  async findOne(id: string) {
     const rid = this.asUserRid(id);
     const row = await this.surreal.client.select<any>(new StringRecordId(rid)).json();
     const user = this.unwrapOne<any | undefined>(row);
@@ -300,7 +437,7 @@ export class UserService {
     id: string,
     updateUserInput: UpdateUserInput,
     currentUserId?: string,
-  ): Promise<User> {
+  ) {
     const rid = this.asUserRid(id);
     if (currentUserId && this.asUserRid(currentUserId) !== rid) {
       throw new ForbiddenException('You can only update your own profile');
@@ -360,7 +497,7 @@ export class UserService {
     return this.normalize(user);
   }
 
-  async remove(id: string, currentUserId?: string): Promise<User> {
+  async remove(id: string, currentUserId?: string) {
     const rid = this.asUserRid(id);
     if (currentUserId && this.asUserRid(currentUserId) !== rid) {
       throw new ForbiddenException('You can only delete your own account');

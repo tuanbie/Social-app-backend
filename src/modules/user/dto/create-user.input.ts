@@ -4,16 +4,16 @@ import { UserStatus } from '../entities/user.entity';
 @InputType()
 export class CreateUserInput {
   @Field(() => String)
-  username: string;
+  username!: string;
 
   @Field(() => String)
-  full_name: string;
+  full_name!: string;
 
   @Field(() => String)
-  email: string;
+  email!: string;
 
   @Field(() => String)
-  password: string;
+  password!: string;
 
   @Field(() => String, { nullable: true })
   avatar?: string;

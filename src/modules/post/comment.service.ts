@@ -8,6 +8,8 @@ import { StringRecordId, Table } from 'surrealdb';
 import type { PostAuthorDto } from './dto/post-author.dto';
 import type { CommentWithAuthorDto } from './dto/comment-with-author.dto';
 import type { CreateCommentDto } from './dto/create-comment.dto';
+import type { CommentListQueryDto } from './dto/comment-list-query.dto';
+import type { CommentListItemDto } from './dto/comment-list-item.dto';
 
 type RawComment = {
   id: string;
@@ -60,6 +62,15 @@ export class CommentService {
     }
     const s = String(ref);
     return s.includes('comment:') ? s : `comment:${s}`;
+  }
+
+  /** Bình luận gốc trên post (parent NONE / null). */
+  private isTopLevelParent(parent: unknown): boolean {
+    if (parent == null || parent === undefined) return true;
+    const str = String(parent).toLowerCase();
+    if (str === 'none' || str === 'null') return true;
+    if (str.includes('comment:')) return false;
+    return true;
   }
 
   /** API: null = bình luận gốc; string = reply */
@@ -136,6 +147,109 @@ export class CommentService {
         created_at: normalized.created_at as Date,
       };
     });
+  }
+
+  private async fetchCommentsByPostId(postId: string): Promise<RawComment[]> {
+    const pid = this.normalizePostRef(postId);
+    const [rows] = await this.surreal.client
+      .query<[unknown[]]>(
+        'SELECT * FROM comment WHERE post_id = $post;',
+        { post: new StringRecordId(pid) },
+      )
+      .collect<[unknown[]]>();
+    const list = Array.isArray(rows) ? rows : [];
+    return list.map((r) =>
+      this.normalizeComment({ ...(r as RawComment), id: String((r as RawComment).id) }),
+    );
+  }
+
+  private countDirectRepliesForParents(
+    allRows: RawComment[],
+    parentIds: Set<string>,
+  ): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const id of parentIds) map.set(id, 0);
+    for (const row of allRows) {
+      const p = this.normalizeCommentRef(row.parent);
+      if (!p.startsWith('comment:')) continue;
+      if (parentIds.has(p)) {
+        map.set(p, (map.get(p) ?? 0) + 1);
+      }
+    }
+    return map;
+  }
+
+  private toCommentListItems(
+    rows: RawComment[],
+    replyCounts: Map<string, number>,
+    dtos: CommentWithAuthorDto[],
+  ): CommentListItemDto[] {
+    return dtos.map((m) => ({
+      ...m,
+      replies_count: replyCounts.get(m.id) ?? 0,
+    }));
+  }
+
+  async listCommentsForPost(
+    postId: string,
+    query: CommentListQueryDto,
+  ): Promise<{ items: CommentListItemDto[]; hasMore: boolean }> {
+    await this.assertPostExists(postId);
+    const pid = this.normalizePostRef(postId);
+    const all = await this.fetchCommentsByPostId(pid);
+    const topLevel = all
+      .filter((r) => this.isTopLevelParent(r.parent))
+      .sort(
+        (a, b) =>
+          new Date(b.created_at as string).getTime() -
+          new Date(a.created_at as string).getTime(),
+      );
+
+    const page = Math.max(1, Number(query.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(query.limit ?? 20)));
+    const start = (page - 1) * limit;
+    const slice = topLevel.slice(start, start + limit);
+    const hasMore = topLevel.length > start + limit;
+
+    const pageIds = new Set(slice.map((r) => this.normalizeCommentRef(r.id)));
+    const replyCounts = this.countDirectRepliesForParents(all, pageIds);
+    const mapped = await this.mapCommentsWithAuthors(slice);
+    return {
+      items: this.toCommentListItems(slice, replyCounts, mapped),
+      hasMore,
+    };
+  }
+
+  async listRepliesForComment(
+    commentId: string,
+    query: CommentListQueryDto,
+  ): Promise<{ items: CommentListItemDto[]; hasMore: boolean }> {
+    const parent = await this.loadCommentRaw(commentId);
+    const postIdStr = this.normalizePostRef(parent.post_id);
+    const cid = this.normalizeCommentRef(commentId);
+
+    const all = await this.fetchCommentsByPostId(postIdStr);
+    const direct = all
+      .filter((r) => this.normalizeCommentRef(r.parent) === cid)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at as string).getTime() -
+          new Date(a.created_at as string).getTime(),
+      );
+
+    const page = Math.max(1, Number(query.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(query.limit ?? 20)));
+    const start = (page - 1) * limit;
+    const slice = direct.slice(start, start + limit);
+    const hasMore = direct.length > start + limit;
+
+    const pageIds = new Set(slice.map((r) => this.normalizeCommentRef(r.id)));
+    const replyCounts = this.countDirectRepliesForParents(all, pageIds);
+    const mapped = await this.mapCommentsWithAuthors(slice);
+    return {
+      items: this.toCommentListItems(slice, replyCounts, mapped),
+      hasMore,
+    };
   }
 
   private async assertPostExists(postId: string): Promise<void> {

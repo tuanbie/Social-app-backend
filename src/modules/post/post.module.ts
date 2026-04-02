@@ -8,5 +8,6 @@ import { CommentController } from './comment.controller';
 @Module({
   controllers: [PostController, CommentController],
   providers: [PostResolver, PostService, CommentService],
+  exports: [PostService],
 })
 export class PostModule {}

@@ -78,6 +78,11 @@ export class PostService {
     return s.includes('post:') ? s : `post:${s}`;
   }
 
+  /** Khớp key với `getEngagementStatsForPostIds` / feed. */
+  normalizePostRecordId(ref: unknown): string {
+    return this.normalizePostRef(ref);
+  }
+
   /** Bình luận gốc trên post: `parent` là NONE / null (không trỏ tới comment khác). */
   private isTopLevelComment(parent: unknown): boolean {
     if (parent == null || parent === undefined) return true;
@@ -96,6 +101,14 @@ export class PostService {
       .collect<[unknown[]]>();
     const first = collected[0];
     return Array.isArray(first) ? (first as { post_id?: unknown; liker_ids?: unknown[] }[]) : [];
+  }
+
+  /** likes_count + comments_count (chỉ bình luận gốc) — dùng chung feed và profile user. */
+  async getEngagementStatsForPostIds(postIds: string[]): Promise<{
+    likes: Map<string, number>;
+    comments: Map<string, number>;
+  }> {
+    return this.aggregateStatsForPosts(postIds);
   }
 
   private async aggregateStatsForPosts(postIds: string[]): Promise<{

@@ -19,16 +19,26 @@ DEFINE INDEX idx_user_email ON user COLUMNS email UNIQUE;
 DEFINE INDEX idx_user_username ON user COLUMNS username UNIQUE;
 
 -- =========================================================
--- 2. QUAN HỆ BẠN BÈ (FRIEND)
+-- 2. CHẶN (BLOCK) — tách khỏi friend
+-- =========================================================
+DEFINE TABLE block SCHEMAFULL TYPE RELATION FROM user TO user;
+DEFINE FIELD in  ON block TYPE record<user>;
+DEFINE FIELD out ON block TYPE record<user>;
+
+DEFINE INDEX idx_unique_block ON block FIELDS in, out UNIQUE;
+
+-- =========================================================
+-- 3. QUAN HỆ BẠN BÈ (FRIEND)
 -- =========================================================
 DEFINE TABLE friend SCHEMAFULL TYPE RELATION FROM user TO user;
-DEFINE FIELD status      ON friend TYPE string DEFAULT 'pending' ASSERT $value INSIDE ['pending', 'accepted', 'blocked'];
+DEFINE FIELD status      ON friend TYPE string DEFAULT 'pending' ASSERT $value INSIDE ['pending', 'accepted', 'declined'];
 DEFINE FIELD created_at  ON friend TYPE datetime DEFAULT time::now();
+DEFINE FIELD updated_at  ON friend TYPE datetime VALUE time::now();
 
 DEFINE INDEX idx_unique_friend ON friend FIELDS in, out UNIQUE;
 
 -- =========================================================
--- 3. BÀI VIẾT (POST)
+-- 4. BÀI VIẾT (POST)
 -- =========================================================
 DEFINE TABLE post SCHEMAFULL;
 DEFINE FIELD content     ON post TYPE option<string>;
@@ -41,7 +51,7 @@ DEFINE FIELD created_at  ON post TYPE datetime DEFAULT time::now();
 DEFINE INDEX idx_post_created ON post FIELDS created_at;
 
 -- =========================================================
--- 4. TƯƠNG TÁC LIKE (LIKE) — một dòng / post, danh sách user trong liker_ids
+-- 5. TƯƠNG TÁC LIKE (LIKE) — một dòng / post, danh sách user trong liker_ids
 -- =========================================================
 DEFINE TABLE like SCHEMAFULL;
 DEFINE FIELD post_id    ON like TYPE record<post>;
@@ -51,7 +61,7 @@ DEFINE FIELD updated_at ON like TYPE datetime DEFAULT time::now();
 DEFINE INDEX idx_like_post ON like FIELDS post_id UNIQUE;
 
 -- =========================================================
--- 5. BÌNH LUẬN (COMMENT)
+-- 6. BÌNH LUẬN (COMMENT)
 -- =========================================================
 DEFINE TABLE comment SCHEMAFULL;
 DEFINE FIELD content     ON comment TYPE string;
@@ -65,7 +75,7 @@ DEFINE INDEX idx_parent ON comment FIELDS parent;
 DEFINE INDEX idx_post ON comment FIELDS post_id;
 
 -- =========================================================
--- 6. TIN NHẮN (MESSAGE)
+-- 7. TIN NHẮN (MESSAGE)
 -- =========================================================
 DEFINE TABLE message SCHEMAFULL;
 DEFINE FIELD sender      ON message TYPE record<user>;
