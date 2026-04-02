@@ -41,24 +41,28 @@ DEFINE FIELD created_at  ON post TYPE datetime DEFAULT time::now();
 DEFINE INDEX idx_post_created ON post FIELDS created_at;
 
 -- =========================================================
--- 4. TƯƠNG TÁC LIKE (LIKE)
+-- 4. TƯƠNG TÁC LIKE (LIKE) — một dòng / post, danh sách user trong liker_ids
 -- =========================================================
-DEFINE TABLE like SCHEMAFULL TYPE RELATION FROM user TO post;
-DEFINE FIELD created_at  ON like TYPE datetime DEFAULT time::now();
+DEFINE TABLE like SCHEMAFULL;
+DEFINE FIELD post_id    ON like TYPE record<post>;
+DEFINE FIELD liker_ids  ON like TYPE array<record<user>> DEFAULT [];
+DEFINE FIELD updated_at ON like TYPE datetime DEFAULT time::now();
 
-DEFINE INDEX idx_unique_like ON like FIELDS in, out UNIQUE;
+DEFINE INDEX idx_like_post ON like FIELDS post_id UNIQUE;
 
 -- =========================================================
 -- 5. BÌNH LUẬN (COMMENT)
 -- =========================================================
 DEFINE TABLE comment SCHEMAFULL;
-DEFINE FIELD content     ON comment TYPE string ASSERT string::len($value) > 0;
+DEFINE FIELD content     ON comment TYPE string;
 DEFINE FIELD author      ON comment TYPE record<user>;
-DEFINE FIELD image       ON comment TYPE option<string>;
-DEFINE FIELD target      ON comment TYPE record<post | comment>;
+DEFINE FIELD post_id     ON comment TYPE record<post>;
+DEFINE FIELD parent      ON comment TYPE none | record<comment> DEFAULT NONE;
 DEFINE FIELD created_at  ON comment TYPE datetime DEFAULT time::now();
 
-DEFINE INDEX idx_comment_target ON comment FIELDS target;
+DEFINE INDEX idx_created ON comment FIELDS created_at;
+DEFINE INDEX idx_parent ON comment FIELDS parent;
+DEFINE INDEX idx_post ON comment FIELDS post_id;
 
 -- =========================================================
 -- 6. TIN NHẮN (MESSAGE)

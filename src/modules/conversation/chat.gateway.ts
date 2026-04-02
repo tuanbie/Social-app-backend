@@ -9,8 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { IncomingMessage } from 'http';
-import { WebSocket } from 'ws';
+import type { Server, Socket } from 'socket.io';
 import { ConversationService } from './conversation.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
 
@@ -19,24 +18,30 @@ type SendPayload = {
   content: string;
 };
 
+function firstQuery(
+  q: string | string[] | undefined,
+): string | undefined {
+  if (q == null) return undefined;
+  return Array.isArray(q) ? q[0] : q;
+}
+
 @Injectable()
 @WebSocketGateway({
-  transports: ['websocket', 'polling'],
   path: '/chat',
   cors: { origin: '*' },
+  transports: ['websocket', 'polling'],
+  maxHttpBufferSize: 6e6,
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server!: import('ws').Server;
+  server!: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
-  private readonly socketUser = new WeakMap<WebSocket, string>();
-  private readonly userSockets = new Map<string, Set<WebSocket>>();
 
   constructor(
     private readonly jwt: JwtService,
     private readonly conversationService: ConversationService,
-  ) { }
+  ) {}
 
   private normalizeUserId(raw: unknown): string {
     if (raw == null) return '';
@@ -48,91 +53,85 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.normalizeUserId((p as any).id ?? p.sub);
   }
 
-  async handleConnection(client: WebSocket, req: IncomingMessage) {
+  private tokenFromHandshake(client: Socket): string | undefined {
+    const q = client.handshake.query;
+    const fromQuery =
+      firstQuery(q.token as string | string[] | undefined) ??
+      firstQuery(q.access_token as string | string[] | undefined);
+    if (fromQuery) return fromQuery;
+    const auth = client.handshake.auth as { token?: string } | undefined;
+    if (auth?.token) return auth.token;
+    return undefined;
+  }
+
+  async handleConnection(client: Socket) {
     try {
-      const host = req.headers.host ?? 'localhost';
-      const url = new URL(req.url ?? '/', `http://${host}`);
-      const token =
-        url.searchParams.get('token') ??
-        url.searchParams.get('access_token');
+      const token = this.tokenFromHandshake(client);
       if (!token) {
-        client.close(4001, 'Missing token');
+        this.logger.warn('Socket.IO: missing token');
+        client.disconnect(true);
         return;
       }
       const payload = await this.jwt.verifyAsync<JwtUserPayload>(token);
       const userId = this.uidFromPayload(payload);
       if (!userId) {
-        client.close(4001, 'Invalid token payload');
+        this.logger.warn('Socket.IO: invalid token payload');
+        client.disconnect(true);
         return;
       }
-      this.socketUser.set(client, userId);
-      if (!this.userSockets.has(userId)) {
-        this.userSockets.set(userId, new Set());
-      }
-      this.userSockets.get(userId)!.add(client);
-      client.send(
-        JSON.stringify({
-          event: 'connected',
-          data: { userId },
-        }),
-      );
+      (client.data as { userId: string }).userId = userId;
+      await client.join(userId);
+      client.emit('connected', { userId });
+      this.logger.log(`Socket.IO connected userId=${userId}`);
     } catch (e) {
-      this.logger.warn(`WS auth failed: ${e}`);
-      client.close(4001, 'Unauthorized');
+      this.logger.warn(`Socket.IO auth failed: ${e}`);
+      client.disconnect(true);
     }
   }
 
-  handleDisconnect(client: WebSocket) {
-    const userId = this.socketUser.get(client);
-    if (!userId) return;
-    const set = this.userSockets.get(userId);
-    if (set) {
-      set.delete(client);
-      if (set.size === 0) this.userSockets.delete(userId);
+  handleDisconnect(client: Socket) {
+    const userId = (client.data as { userId?: string }).userId;
+    if (userId) {
+      this.logger.log(`Socket.IO disconnected userId=${userId}`);
     }
-    this.socketUser.delete(client);
   }
 
-  private broadcastToUsers(userIds: string[], payload: object) {
-    const line = JSON.stringify(payload);
+  private broadcastToUsers(userIds: string[], event: string, data: unknown) {
     const seen = new Set<string>();
     for (const rawId of userIds) {
       const uid = this.normalizeUserId(rawId);
       if (seen.has(uid)) continue;
       seen.add(uid);
-      const sockets = this.userSockets.get(uid);
-      if (!sockets) continue;
-      for (const ws of sockets) {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(line);
-        }
-      }
+      this.server.to(uid).emit(event, data);
     }
   }
 
   @SubscribeMessage('send_message')
   async onSend(
-    @ConnectedSocket() client: WebSocket,
+    @ConnectedSocket() client: Socket,
     @MessageBody() body: SendPayload,
   ) {
-    const senderId = this.socketUser.get(client);
+    const senderId = (client.data as { userId?: string }).userId;
     if (!senderId) {
       return { event: 'error', data: { message: 'Unauthorized' } };
     }
     if (!body?.receiverId || !body?.content?.trim()) {
-      return { event: 'error', data: { message: 'receiverId và content là bắt buộc' } };
+      return {
+        event: 'error',
+        data: { message: 'receiverId và content là bắt buộc' },
+      };
     }
     try {
       const message = await this.conversationService.sendMessage(senderId, {
         receiverId: body.receiverId,
         content: body.content.trim(),
       });
-      const payload = {
-        event: 'new_message',
-        data: { message },
-      };
-      this.broadcastToUsers([this.normalizeUserId(body.receiverId)], payload);
-      // return { event: 'sent', data: { message } };
+      this.broadcastToUsers(
+        [this.normalizeUserId(body.receiverId)],
+        'new_message',
+        { message },
+      );
+      return { event: 'sent', data: { message } };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       return { event: 'error', data: { message: msg } };
