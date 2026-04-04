@@ -14,8 +14,11 @@ import { ConversationService } from './conversation.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
 
 type SendPayload = {
-  receiverId: string;
-  content: string;
+  event: string;
+  data: {
+    receiverId: string;
+    content: string;
+  };
 };
 
 function firstQuery(
@@ -27,7 +30,7 @@ function firstQuery(
 
 @Injectable()
 @WebSocketGateway({
-  path: '/chat',
+  path: '',
   cors: { origin: '*' },
   transports: ['websocket', 'polling'],
   maxHttpBufferSize: 6e6,
@@ -41,7 +44,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwt: JwtService,
     private readonly conversationService: ConversationService,
-  ) {}
+  ) { }
 
   private normalizeUserId(raw: unknown): string {
     if (raw == null) return '';
@@ -115,7 +118,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!senderId) {
       return { event: 'error', data: { message: 'Unauthorized' } };
     }
-    if (!body?.receiverId || !body?.content?.trim()) {
+    if (!body?.data?.receiverId || !body?.data?.content?.trim()) {
       return {
         event: 'error',
         data: { message: 'receiverId và content là bắt buộc' },
@@ -123,11 +126,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     try {
       const message = await this.conversationService.sendMessage(senderId, {
-        receiverId: body.receiverId,
-        content: body.content.trim(),
+        receiverId: body.data.receiverId,
+        content: body.data.content.trim(),
       });
+      console.log('message', message, body.data.receiverId);
       this.broadcastToUsers(
-        [this.normalizeUserId(body.receiverId)],
+        [this.normalizeUserId(body.data.receiverId)],
         'new_message',
         { message },
       );
