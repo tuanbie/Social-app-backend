@@ -14,12 +14,14 @@ import { UserProfileQueryDto } from './dto/user-profile-query.dto';
 import { UserBasicDto } from './dto/user-basic.dto';
 import { SurrealService } from '../../database/surreal.service';
 import { PostService } from '../post/post.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly surreal: SurrealService,
     private readonly postService: PostService,
+    private readonly notificationService: NotificationService,
   ) { }
 
   private unwrapOne<T>(result: any): T {
@@ -311,7 +313,13 @@ export class UserService {
             .update(new StringRecordId(String(existing.id)))
             .merge({ status: 'accepted' })
             .json();
-          return this.unwrapOne(updated);
+          const result = this.unwrapOne(updated);
+          await this.notificationService.notifyFriendAccepted(
+            targetRid,
+            viewerRid,
+            String(existing.id),
+          );
+          return result;
         }
         return existing;
       }
@@ -320,7 +328,15 @@ export class UserService {
           .update(new StringRecordId(String(existing.id)))
           .merge({ status: 'pending' })
           .json();
-        return this.unwrapOne(updated);
+        const result = this.unwrapOne(updated);
+        const ein = this.edgeRid(existing.in);
+        const eout = this.edgeRid(existing.out);
+        await this.notificationService.notifyFriendRequest(
+          eout,
+          ein,
+          String(existing.id),
+        );
+        return result;
       }
       return existing;
     }
@@ -333,7 +349,13 @@ export class UserService {
         { status: 'pending' },
       )
       .json();
-    return this.unwrapOne(created);
+    const result = this.unwrapOne(created);
+    await this.notificationService.notifyFriendRequest(
+      targetRid,
+      viewerRid,
+      String((result as { id?: unknown }).id ?? ''),
+    );
+    return result;
   }
 
   async cancelFriend(viewerId: string, targetId: string) {

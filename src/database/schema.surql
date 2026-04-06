@@ -88,3 +88,16 @@ DEFINE FIELD created_at  ON message TYPE datetime DEFAULT time::now();
 
 DEFINE INDEX idx_message_time ON message FIELDS created_at;
 
+-- =========================================================
+-- 8. THÔNG BÁO (NOTIFICATION)
+-- =========================================================
+DEFINE TABLE notification SCHEMAFULL;
+DEFINE FIELD receiver    ON notification TYPE record<user>;
+DEFINE FIELD actor       ON notification TYPE record<user>;
+DEFINE FIELD action      ON notification TYPE string ASSERT $value INSIDE ['LIKE', 'COMMENT', 'FRIEND_REQ', 'FRIEND_ACCEPT'];
+DEFINE FIELD target_id   ON notification TYPE record;
+DEFINE FIELD is_read     ON notification TYPE bool DEFAULT false;
+DEFINE FIELD created_at  ON notification TYPE datetime DEFAULT time::now();
+
+DEFINE INDEX idx_notification_receiver_created ON notification FIELDS receiver, created_at;
+

@@ -3,9 +3,10 @@ import { UserService } from './user.service';
 import { UserResolver } from './user.resolver';
 import { UserController } from './user.controller';
 import { PostModule } from '../post/post.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [PostModule],
+  imports: [PostModule, NotificationModule],
   controllers: [UserController],
   providers: [UserResolver, UserService],
 })

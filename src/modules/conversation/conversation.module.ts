@@ -16,5 +16,6 @@ import { appSettings } from '../../common/config/appSetting';
   ],
   controllers: [ConversationController],
   providers: [ConversationService, ChatGateway],
+  exports: [ChatGateway],
 })
 export class ConversationModule { }

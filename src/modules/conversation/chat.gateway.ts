@@ -109,6 +109,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /** Realtime (vd. thông báo): emit tới room Socket.IO = user id. */
+  emitToUser(userId: string, event: string, data: unknown) {
+    this.broadcastToUsers([userId], event, data);
+  }
+
   @SubscribeMessage('send_message')
   async onSend(
     @ConnectedSocket() client: Socket,
