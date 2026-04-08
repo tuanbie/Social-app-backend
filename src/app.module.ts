@@ -10,6 +10,7 @@ import { SurrealModule } from './database/surreal.module';
 import { PostModule } from './modules/post/post.module';
 import { ConversationModule } from './modules/conversation/conversation.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AuthModule } from './modules/auth/auth.module';
     PostModule,
     ConversationModule,
     AuthModule,
+    UploadModule,
   ],
   controllers: [],
   providers: [],

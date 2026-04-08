@@ -35,6 +35,10 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Firebase Admin SDK — không commit private key
+*-firebase-adminsdk-*.json
+**/firebase-adminsdk*.json
+
 # dotenv environment variable files
 .env
 .env.development.local
