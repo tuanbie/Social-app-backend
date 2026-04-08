@@ -17,8 +17,13 @@ export const appSettings = {
   },
   /** Firebase Admin — upload Storage */
   firebase: {
-    /** Bucket mặc định: `{project_id}.appspot.com` nếu chỉ cấu hình file JSON / env project */
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET ?? '',
+    /**
+     * Tên bucket (vd. `project.appspot.com` hoặc `project.firebasestorage.app`).
+     * Bỏ tiền tố `gs://` nếu copy từ Console.
+     */
+    storageBucket: (process.env.FIREBASE_STORAGE_BUCKET ?? '')
+      .replace(/^gs:\/\//i, '')
+      .trim(),
     /** Toàn bộ JSON service account (một dòng), ưu tiên sau file path nếu bạn set cả hai — xem service */
     serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
     /**

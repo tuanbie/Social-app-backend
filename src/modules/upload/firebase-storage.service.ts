@@ -78,6 +78,12 @@ export class FirebaseStorageService implements OnModuleInit {
           clientEmail: firebase.clientEmail,
           privateKey: firebase.privateKey.replace(/\\n/g, '\n'),
         };
+        if (!storageBucket && firebase.projectId) {
+          storageBucket = `${firebase.projectId}.appspot.com`;
+          this.logger.log(
+            `Firebase: dùng bucket mặc định ${storageBucket} (từ FIREBASE_PROJECT_ID).`,
+          );
+        }
       }
 
       if (!credential) {
@@ -85,7 +91,7 @@ export class FirebaseStorageService implements OnModuleInit {
       }
       if (!storageBucket) {
         this.logger.warn(
-          'Firebase: thiếu FIREBASE_STORAGE_BUCKET và không suy ra được từ JSON (project_id).',
+          'Firebase: thiếu FIREBASE_STORAGE_BUCKET và không suy ra được từ project_id / FIREBASE_PROJECT_ID.',
         );
         return;
       }
