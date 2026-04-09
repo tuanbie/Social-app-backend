@@ -202,6 +202,49 @@ export class ConversationService {
   }
 
   /** Snapshot khi đã có edge + messages */
+  /** id, name (full_name), avatar — batch cho peer trong conversation. */
+  private async fetchPeerSummaries(
+    ids: string[],
+  ): Promise<
+    Map<string, { id: string; name: string | null; avatar: string | null }>
+  > {
+    const unique = [
+      ...new Set(
+        ids.filter(Boolean).map((id) => {
+          const raw = typeof id === 'string' ? id : String(id);
+          return this.ridString(this.toUserRid(raw));
+        }),
+      ),
+    ];
+    const map = new Map<
+      string,
+      { id: string; name: string | null; avatar: string | null }
+    >();
+    await Promise.all(
+      unique.map(async (uid) => {
+        try {
+          const row = await this.surreal.client
+            .select<any>(new StringRecordId(uid))
+            .json();
+          const u = this.unwrapOne<any>(row);
+          if (!u) {
+            map.set(uid, { id: uid, name: null, avatar: null });
+            return;
+          }
+          const id = this.ridString(u.id ?? uid);
+          map.set(id, {
+            id,
+            name: u.full_name != null ? String(u.full_name) : null,
+            avatar: u.avatar != null ? String(u.avatar) : null,
+          });
+        } catch {
+          map.set(uid, { id: uid, name: null, avatar: null });
+        }
+      }),
+    );
+    return map;
+  }
+
   private snapshotSync(
     me: string,
     edge: any,
@@ -247,6 +290,10 @@ export class ConversationService {
       currentUserId,
       peerUserId,
     );
+    const peerMap = await this.fetchPeerSummaries([peer]);
+    const peerUser =
+      peerMap.get(peer) ?? { id: peer, name: null, avatar: null };
+
     const msgs = (await this.messagesInConversationAsync(convId)).filter(
       (m) => !m?.is_revoked,
     );
@@ -261,6 +308,7 @@ export class ConversationService {
         is_new: true,
         conversation_id: convId,
         peer_id: peer,
+        peer: peerUser,
         unread_count: 0,
       };
     }
@@ -278,6 +326,7 @@ export class ConversationService {
       is_new: false,
       conversation_id: convId,
       peer_id: peer,
+      peer: peerUser,
       ...snap,
     };
   }
@@ -289,7 +338,14 @@ export class ConversationService {
     const edges = await this.allUserInConv();
     const mine = edges.filter((e) => this.ridString(e?.in) === me);
 
-    const items: ConversationListItemEntity[] = [];
+    const rows: Array<{
+      convId: string;
+      edge: any;
+      conv: any;
+      peer: string;
+      msgs: any[];
+    }> = [];
+
     for (const edge of mine) {
       const convId = this.ridString(edge.out);
       const conv =
@@ -308,15 +364,23 @@ export class ConversationService {
           new Date(b.created_at ?? 0).getTime() -
           new Date(a.created_at ?? 0).getTime(),
       );
-      const last = msgs[0];
-      const snap = this.snapshotSync(me, edge, msgs, last, conv);
-
-      items.push({
-        conversation_id: convId,
-        peer_id: peer,
-        ...snap,
-      });
+      rows.push({ convId, edge, conv, peer, msgs });
     }
+
+    const peerMap = await this.fetchPeerSummaries(rows.map((r) => r.peer));
+
+    const items: ConversationListItemEntity[] = rows.map((r) => {
+      const last = r.msgs[0];
+      const snap = this.snapshotSync(me, r.edge, r.msgs, last, r.conv);
+      const peerUser =
+        peerMap.get(r.peer) ?? { id: r.peer, name: null, avatar: null };
+      return {
+        conversation_id: r.convId,
+        peer_id: r.peer,
+        peer: peerUser,
+        ...snap,
+      };
+    });
 
     items.sort(
       (a, b) =>

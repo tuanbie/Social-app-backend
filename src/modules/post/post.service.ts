@@ -27,7 +27,7 @@ type SeenRecord = {
 
 @Injectable()
 export class PostService {
-  constructor(private readonly surreal: SurrealService) {}
+  constructor(private readonly surreal: SurrealService) { }
 
   private toRecordId(table: 'user' | 'post' | 'seen', value: string): StringRecordId {
     const normalized = value.startsWith(`${table}:`) ? value : `${table}:${value}`;
@@ -329,21 +329,27 @@ export class PostService {
     return [];
   }
 
-  async create(createPostInput: CreatePostInput): Promise<Post> {
-    const payload = {
-      content: createPostInput.content ?? null,
-      image: createPostInput.image ?? null,
+  async create(createPostInput: CreatePostInput) {
+    // SCHEMAFULL option<string>: không gửi `null` (Surreal báo lỗi NULL vs none|string).
+    const payload: Record<string, unknown> = {
       files: createPostInput.files ?? [],
       author: this.toRecordId('user', createPostInput.authorId),
       status: createPostInput.status ?? PostStatus.published,
-      // created_at để DB default time::now()
     };
+    if (createPostInput.content != null) {
+      payload.content = createPostInput.content;
+    }
+    if (createPostInput.image != null) {
+      payload.image = createPostInput.image;
+    }
 
     const created = await this.surreal.client
       .create<any>(new Table('post'))
       .content(payload)
       .json();
-    return this.normalize(this.unwrapOne<Post>(created));
+    const post = this.normalize(this.unwrapOne<Post>(created));
+    const [withAuthor] = await this.mapPostsWithAuthors([post]);
+    return withAuthor;
   }
 
   async findAll(query: PostQueryDto = {}): Promise<Post[]> {
@@ -512,8 +518,12 @@ export class PostService {
       await this.assertPostOwner(id, currentUserId);
     }
     const patch: Record<string, unknown> = {};
-    if (updatePostInput.content !== undefined) patch.content = updatePostInput.content;
-    if (updatePostInput.image !== undefined) patch.image = updatePostInput.image;
+    if (updatePostInput.content !== undefined && updatePostInput.content !== null) {
+      patch.content = updatePostInput.content;
+    }
+    if (updatePostInput.image !== undefined && updatePostInput.image !== null) {
+      patch.image = updatePostInput.image;
+    }
     if (updatePostInput.files !== undefined) patch.files = updatePostInput.files;
     if (updatePostInput.status !== undefined) patch.status = updatePostInput.status;
 

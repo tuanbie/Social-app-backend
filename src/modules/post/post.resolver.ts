@@ -10,8 +10,17 @@ export class PostResolver {
   constructor(private readonly postService: PostService) {}
 
   @Mutation(() => Post)
-  createPost(@Args('createPostInput') createPostInput: CreatePostInput) {
-    return this.postService.create(createPostInput);
+  async createPost(@Args('createPostInput') createPostInput: CreatePostInput) {
+    const dto = await this.postService.create(createPostInput);
+    return {
+      id: dto.id,
+      content: dto.content,
+      image: dto.image,
+      files: dto.files,
+      author: dto.author.id,
+      status: dto.status,
+      created_at: dto.created_at,
+    };
   }
 
   @Query(() => [Post], { name: 'posts' })

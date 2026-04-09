@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ConversationPeerUserDto } from '../dto/conversation-peer-user.dto';
 
 /** Khớp bảng `message`: content, conversation, sender, created_at */
 export class MessageEntity {
@@ -24,6 +25,9 @@ export class ConversationListItemEntity {
 
   @ApiProperty({ description: 'user:… của đối phương' })
   peer_id!: string;
+
+  @ApiProperty({ type: ConversationPeerUserDto })
+  peer!: ConversationPeerUserDto;
 
   @ApiPropertyOptional()
   last_message?: string;
@@ -51,6 +55,9 @@ export class OpenConversationResponseEntity {
 
   @ApiProperty()
   peer_id!: string;
+
+  @ApiProperty({ type: ConversationPeerUserDto })
+  peer!: ConversationPeerUserDto;
 
   @ApiPropertyOptional()
   last_message?: string;

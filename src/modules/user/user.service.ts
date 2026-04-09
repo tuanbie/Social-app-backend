@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { PostStatus } from '../post/entities/post.entity';
 import { UserProfileQueryDto } from './dto/user-profile-query.dto';
 import { UserBasicDto } from './dto/user-basic.dto';
+import type { MutualFriendPreviewDto } from './dto/mutual-friend-preview.dto';
 import { SurrealService } from '../../database/surreal.service';
 import { PostService } from '../post/post.service';
 import { NotificationService } from '../notification/notification.service';
@@ -380,6 +381,20 @@ export class UserService {
     return this.mapFriendEdgesWithUsers(filtered);
   }
 
+  /**
+   * Lời mời đã **nhận**, đang chờ xử lý (`out` = viewer = người nhận, `in` = người gửi).
+   * Khớp `relate(người_gửi, friend, người_nhận)`.
+   */
+  async listIncomingPendingFriends(viewerId: string) {
+    const viewerRid = this.asUserRid(viewerId);
+    const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
+    const filtered = (friendRows ?? []).filter(
+      (f) =>
+        f?.status === 'pending' && this.edgeRid(f?.out) === viewerRid,
+    );
+    return this.mapFriendEdgesWithUsers(filtered);
+  }
+
   async listFriends(viewerId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
@@ -388,6 +403,50 @@ export class UserService {
       (f) => this.edgeRid(f?.in) === viewerRid || this.edgeRid(f?.out) === viewerRid,
     );
     return this.mapFriendEdgesWithUsers(filtered);
+  }
+
+  /**
+   * Danh sách user là bạn (accepted) của cả `viewerId` và `targetUserId` — giao hai tập.
+   */
+  private acceptedNeighborUserIds(userRid: string, friendRows: any[]): Set<string> {
+    const accepted = (friendRows ?? []).filter((f) => f?.status === 'accepted');
+    const out = new Set<string>();
+    const u = this.asUserRid(userRid);
+    for (const f of accepted) {
+      const a = this.edgeRid(f?.in);
+      const b = this.edgeRid(f?.out);
+      if (a === u) out.add(b);
+      else if (b === u) out.add(a);
+    }
+    return out;
+  }
+
+  async listMutualFriends(viewerId: string, targetUserId: string) {
+    const viewerRid = this.asUserRid(viewerId);
+    const targetRid = this.asUserRid(targetUserId);
+    if (viewerRid === targetRid) {
+      throw new BadRequestException('Không thể xem bạn chung với chính mình');
+    }
+    await this.findOne(targetRid);
+
+    const friendRows =
+      (await this.surreal.client.select<any>(new Table('friend')).json()) ?? [];
+    const mine = this.acceptedNeighborUserIds(viewerRid, friendRows);
+    const theirs = this.acceptedNeighborUserIds(targetRid, friendRows);
+    const mutualIds = [...mine].filter((id) => theirs.has(id));
+    mutualIds.sort((x, y) => x.localeCompare(y));
+
+    const umap = await this.fetchUserPreviewMap(mutualIds);
+    return mutualIds.map((id) => {
+      const p = umap.get(id) ?? this.previewFallback(id);
+      const row: MutualFriendPreviewDto = {
+        id: p.id,
+        full_name: p.full_name ?? null,
+        username: p.username ?? null,
+        avatar: p.avatar ?? null,
+      };
+      return row;
+    });
   }
 
   /**

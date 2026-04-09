@@ -12,6 +12,7 @@ import {
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -25,6 +26,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
 import { UserProfileQueryDto } from './dto/user-profile-query.dto';
+import { MutualFriendPreviewDto } from './dto/mutual-friend-preview.dto';
 
 @ApiTags('users')
 @ApiBearerAuth('access-token')
@@ -43,14 +45,24 @@ export class UserController {
   /** Static paths before @Get(':id') so "friends" / "blocks" are not captured as ids. */
   @Get('friends/pending')
   @ApiOperation({
-    summary: 'Lời mời kết bạn đang chờ (do bạn gửi)',
+    summary: 'Lời mời kết bạn đang chờ (do bạn gửi — đối phương chưa trả lời)',
     description:
-      'Bảng `friend`: `status=pending` và `in` = current user (outgoing). Mỗi phần tử có `in_user`, `out_user` (id, full_name, username, avatar).',
+      'Bảng `friend`: `status=pending` và `in` = current user (người gửi). Xem lời mời **đã nhận**: `GET /users/friends/incoming`.',
   })
   async getPendingFriends(
     @CurrentUser() viewer: JwtUserPayload,
   ) {
     return await this.userService.listPendingFriends(viewer.id ?? viewer.sub);
+  }
+
+  @Get('friends/incoming')
+  @ApiOperation({
+    summary: 'Lời mời kết bạn đã nhận, đang chờ',
+    description:
+      '`status=pending` và `out` = current user (bạn là người nhận; `in_user` là người gửi lời mời). Cùng format `in_user` / `out_user` như các API friend khác.',
+  })
+  async getIncomingFriendRequests(@CurrentUser() viewer: JwtUserPayload) {
+    return await this.userService.listIncomingPendingFriends(viewer.id ?? viewer.sub);
   }
 
   @Get('friends')
@@ -71,6 +83,22 @@ export class UserController {
   })
   async getBlocked(@CurrentUser() viewer: JwtUserPayload) {
     return await this.userService.listBlocked(viewer.id ?? viewer.sub);
+  }
+
+  @Get(':id/mutual-friends')
+  @ApiOperation({
+    summary: 'Danh sách bạn chung với một user',
+    description:
+      'Bạn chung = user thứ ba mà **cả bạn (JWT) và user `:id`** đều có cạnh `friend` với `status = accepted`. ' +
+      'Không tính quan hệ `pending`. Mỗi phần tử có `id`, `full_name` (tên), `username`, `avatar`.',
+  })
+  @ApiOkResponse({ type: [MutualFriendPreviewDto] })
+  @ApiParam({ name: 'id', example: 'user:abc123', description: 'User để so khớp bạn chung' })
+  async getMutualFriends(
+    @Param('id') id: string,
+    @CurrentUser() viewer: JwtUserPayload,
+  ) {
+    return await this.userService.listMutualFriends(viewer.id ?? viewer.sub, id);
   }
 
   @Get(':id')

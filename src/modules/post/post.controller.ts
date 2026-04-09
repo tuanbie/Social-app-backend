@@ -119,7 +119,11 @@ export class PostController {
   }
 
   @HttpPost()
-  @ApiOperation({ summary: 'Create a post' })
+  @ApiOperation({
+    summary: 'Create a post',
+    description: 'Trả về bài kèm `author` (id, full_name, username, avatar) và engagement.',
+  })
+  @ApiResponse({ status: 201, type: PostWithAuthorDto })
   create(@Body() body: CreatePostDto, @CurrentUser() user: JwtUserPayload) {
     return this.postService.create({
       ...body,
