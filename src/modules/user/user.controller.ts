@@ -45,9 +45,9 @@ export class UserController {
   /** Static paths before @Get(':id') so "friends" / "blocks" are not captured as ids. */
   @Get('friends/pending')
   @ApiOperation({
-    summary: 'Lời mời kết bạn đang chờ (do bạn gửi — đối phương chưa trả lời)',
+    summary: 'Lời mời kết bạn đang chờ (bạn là người nhận — out = current user)',
     description:
-      'Bảng `friend`: `status=pending` và `in` = current user (người gửi). Xem lời mời **đã nhận**: `GET /users/friends/incoming`.',
+      'Bảng `friend`: `status=pending` và `out` = current user. `in_user` là người gửi lời mời. Lời mời **đã gửi** (in = bạn): `GET /users/friends/incoming`.',
   })
   async getPendingFriends(
     @CurrentUser() viewer: JwtUserPayload,
@@ -57,12 +57,12 @@ export class UserController {
 
   @Get('friends/incoming')
   @ApiOperation({
-    summary: 'Lời mời kết bạn đã nhận, đang chờ',
+    summary: 'Lời mời kết bạn bạn đã gửi, đang chờ phản hồi (in = current user)',
     description:
-      '`status=pending` và `out` = current user (bạn là người nhận; `in_user` là người gửi lời mời). Cùng format `in_user` / `out_user` như các API friend khác.',
+      '`status=pending` và `in` = current user (bạn là người gửi; `out_user` là người nhận). Cùng format `in_user` / `out_user` như các API friend khác.',
   })
   async getIncomingFriendRequests(@CurrentUser() viewer: JwtUserPayload) {
-    return await this.userService.listIncomingPendingFriends(viewer.id ?? viewer.sub);
+    return await this.userService.listSentPendingFriends(viewer.id ?? viewer.sub);
   }
 
   @Get('friends')

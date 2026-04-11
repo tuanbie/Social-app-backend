@@ -330,11 +330,10 @@ export class UserService {
           .merge({ status: 'pending' })
           .json();
         const result = this.unwrapOne(updated);
-        const ein = this.edgeRid(existing.in);
-        const eout = this.edgeRid(existing.out);
+        // Luôn theo lần gửi hiện tại: người nhận = target, actor = viewer (không theo chiều cạnh cũ).
         await this.notificationService.notifyFriendRequest(
-          eout,
-          ein,
+          targetRid,
+          viewerRid,
           String(existing.id),
         );
         return result;
@@ -370,27 +369,27 @@ export class UserService {
     return { success: true };
   }
 
-  /** Lời mời đang chờ do **chính user gửi** (`in` = viewer, `out` = đối phương). */
+  /**
+   * Lời mời **nhận được**, đang chờ (`out` = viewer = người nhận; `in` = người gửi).
+   * Khớp `relate(người_gửi, friend, người_nhận)` → in=gửi, out=nhận.
+   */
   async listPendingFriends(viewerId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
     const filtered = (friendRows ?? []).filter(
       (f) =>
-        f?.status === 'pending' && this.edgeRid(f?.in) === viewerRid,
+        f?.status === 'pending' && this.edgeRid(f?.out) === viewerRid,
     );
     return this.mapFriendEdgesWithUsers(filtered);
   }
 
-  /**
-   * Lời mời đã **nhận**, đang chờ xử lý (`out` = viewer = người nhận, `in` = người gửi).
-   * Khớp `relate(người_gửi, friend, người_nhận)`.
-   */
-  async listIncomingPendingFriends(viewerId: string) {
+  /** Lời mời **đã gửi**, đang chờ phản hồi (`in` = viewer = người gửi, `out` = đối phương). */
+  async listSentPendingFriends(viewerId: string) {
     const viewerRid = this.asUserRid(viewerId);
     const friendRows = await this.surreal.client.select<any>(new Table('friend')).json();
     const filtered = (friendRows ?? []).filter(
       (f) =>
-        f?.status === 'pending' && this.edgeRid(f?.out) === viewerRid,
+        f?.status === 'pending' && this.edgeRid(f?.in) === viewerRid,
     );
     return this.mapFriendEdgesWithUsers(filtered);
   }

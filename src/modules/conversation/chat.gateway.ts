@@ -12,6 +12,7 @@ import {
 import type { Server, Socket } from 'socket.io';
 import { ConversationService } from './conversation.service';
 import type { JwtUserPayload } from '../auth/types/jwt-user-payload.type';
+import { TokenDenylistService } from '../auth/token-denylist.service';
 
 type SendPayload = {
   event: string;
@@ -44,7 +45,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwt: JwtService,
     private readonly conversationService: ConversationService,
-  ) { }
+    private readonly tokenDenylist: TokenDenylistService,
+  ) {}
 
   private normalizeUserId(raw: unknown): string {
     if (raw == null) return '';
@@ -76,6 +78,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
       const payload = await this.jwt.verifyAsync<JwtUserPayload>(token);
+      if (payload.jti && (await this.tokenDenylist.isRevoked(payload.jti))) {
+        this.logger.warn('Socket.IO: token revoked');
+        client.disconnect(true);
+        return;
+      }
       const userId = this.uidFromPayload(payload);
       if (!userId) {
         this.logger.warn('Socket.IO: invalid token payload');

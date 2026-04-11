@@ -183,7 +183,8 @@ export class NotificationService {
     const rid = this.asUserRid(userId);
     const [rows] = await this.surreal.client
       .query(
-        `SELECT count() AS count FROM notification WHERE receiver = $r AND is_read = false`,
+        `SELECT count() AS count FROM notification WHERE receiver = $r AND is_read = false` +
+          ` AND (action NOT IN ['FRIEND_REQ', 'FRIEND_ACCEPT'] OR actor != receiver)`,
         { r: new StringRecordId(rid) },
       )
       .collect<[{ count: number }[]]>();
@@ -196,7 +197,9 @@ export class NotificationService {
     const limit = Math.min(100, Math.max(1, query.limit ?? 20));
     const rid = this.asUserRid(userId);
 
-    let sql = `SELECT * FROM notification WHERE receiver = $receiver`;
+    let sql =
+      `SELECT * FROM notification WHERE receiver = $receiver` +
+      ` AND (action NOT IN ['FRIEND_REQ', 'FRIEND_ACCEPT'] OR actor != receiver)`;
     const vars: Record<string, unknown> = {
       receiver: new StringRecordId(rid),
       lim: limit + 1,

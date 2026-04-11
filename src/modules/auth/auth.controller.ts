@@ -10,7 +10,7 @@ import type { JwtUserPayload } from './types/jwt-user-payload.type';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
@@ -30,6 +30,18 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user from token payload' })
   me(@CurrentUser() user: JwtUserPayload) {
     return user;
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Logout',
+    description:
+      'Ghi nhận jti vào Redis (denylist) đến khi access token hết hạn. Cần REDIS_ENABLED=true để có hiệu lực server-side.',
+  })
+  logout(@CurrentUser() user: JwtUserPayload) {
+    return this.authService.logout(user);
   }
 }
 

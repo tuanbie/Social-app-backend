@@ -44,4 +44,27 @@ export const appSettings = {
       10,
     ),
   },
+  /**
+   * Redis: cache (RedisService), scale Socket.IO (@socket.io/redis-adapter).
+   * Rate limit mặc định dùng bộ nhớ process; muốn dùng Redis cho throttle cần ThrottlerStorage tùy chỉnh.
+   */
+  redis: {
+    enabled: process.env.REDIS_ENABLED === 'true',
+    /** Ví dụ: redis://127.0.0.1:6379 hoặc rediss://... (TLS) */
+    url: process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
+    /** Tiền tố key ứng dụng (RedisService) */
+    keyPrefix: (process.env.REDIS_KEY_PREFIX ?? 'social-app').replace(/:$/, ''),
+  },
+  /** Auth + Redis: khóa sau N lần đăng nhập sai (cần REDIS_ENABLED). */
+  auth: {
+    loginMaxAttempts: Math.max(
+      1,
+      parseInt(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? '5', 10),
+    ),
+    /** TTL (giây) cho cửa sổ đếm lỗi + khóa, mặc định 15 phút */
+    loginLockWindowSec: Math.max(
+      60,
+      parseInt(process.env.AUTH_LOGIN_LOCK_WINDOW_SEC ?? '900', 10),
+    ),
+  },
 };

@@ -7,10 +7,20 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { appSettings } from './common/config/appSetting';
+import { RedisIoAdapter } from './redis/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useWebSocketAdapter(new IoAdapter(app));
+
+  let redisIoAdapter: RedisIoAdapter | null = null;
+  if (appSettings.redis.enabled) {
+    redisIoAdapter = new RedisIoAdapter(app, appSettings.redis.url);
+    await redisIoAdapter.connect();
+    app.useWebSocketAdapter(redisIoAdapter);
+  } else {
+    app.useWebSocketAdapter(new IoAdapter(app));
+  }
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -53,5 +63,11 @@ async function bootstrap() {
 
   const port = parseInt(process.env.PORT ?? '3000', 10);
   await app.listen(port, '0.0.0.0');
+
+  app.enableShutdownHooks();
+  const shutdownRedisAdapter = async () => {
+    await redisIoAdapter?.disconnect();
+  };
+  process.once('beforeExit', shutdownRedisAdapter);
 }
 bootstrap();

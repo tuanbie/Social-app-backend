@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { LoginThrottleService } from './login-throttle.service';
+import { TokenDenylistService } from './token-denylist.service';
 import { appSettings } from '../../common/config/appSetting';
 
 @Module({
@@ -12,7 +15,18 @@ import { appSettings } from '../../common/config/appSetting';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [
+    AuthService,
+    LoginThrottleService,
+    TokenDenylistService,
+    JwtAuthGuard,
+  ],
+  exports: [
+    AuthService,
+    JwtAuthGuard,
+    JwtModule,
+    TokenDenylistService,
+  ],
 })
-export class AuthModule { }
+export class AuthModule {}
 

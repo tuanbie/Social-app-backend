@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserResolver } from './user.resolver';
 import { UserController } from './user.controller';
+import { AuthModule } from '../auth/auth.module';
 import { PostModule } from '../post/post.module';
 import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [PostModule, NotificationModule],
+  imports: [AuthModule, PostModule, NotificationModule],
   controllers: [UserController],
   providers: [UserResolver, UserService],
 })
